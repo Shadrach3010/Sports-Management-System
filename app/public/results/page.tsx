@@ -1,0 +1,11 @@
+import { PageHeader } from "@/components/admin/page-header";
+import { createClient } from "@/lib/supabase/server";
+
+export default async function PublicResultsPage() {
+  const supabase = await createClient();
+  const { data } = await supabase.from("results").select("id,outcome,placement,time_milliseconds,distance_millimetres,height_millimetres,performance_score,tie_group,published_at,event:events(name,code),house:houses(name,code)").eq("status", "published").order("published_at", { ascending: false });
+  const rows = (data ?? []) as never as { id: string; outcome: string; placement: number | null; time_milliseconds: number | null; distance_millimetres: number | null; height_millimetres: number | null; performance_score: number | null; tie_group: string | null; published_at: string | null; event: { name: string; code: string } | null; house: { name: string; code: string } | null }[];
+  return <div className="space-y-7"><PageHeader eyebrow="Read-only publication" title="Published event results" description="Only results deliberately published after independent verification and approval appear here. Disputed results are withheld." />
+    {rows.length ? <div className="overflow-x-auto rounded-xl border bg-surface"><table className="w-full text-left text-sm"><thead className="bg-surface-muted"><tr><th className="px-4 py-3">Event</th><th className="px-4 py-3">House</th><th className="px-4 py-3">Outcome</th><th className="px-4 py-3">Performance</th><th className="px-4 py-3">Status</th></tr></thead><tbody>{rows.map((row) => <tr className="border-t" key={row.id}><td className="px-4 py-3 font-medium">{row.event?.code} · {row.event?.name}</td><td className="px-4 py-3">{row.house?.name} ({row.house?.code})</td><td className="px-4 py-3">{row.outcome.replaceAll("_", " ")}{row.placement ? ` · place ${row.placement}` : ""}{row.tie_group ? " · tie" : ""}</td><td className="px-4 py-3">{row.time_milliseconds ? `${row.time_milliseconds} ms` : row.distance_millimetres ? `${row.distance_millimetres} mm` : row.height_millimetres ? `${row.height_millimetres} mm` : row.performance_score ?? "—"}</td><td className="px-4 py-3">Published</td></tr>)}</tbody></table></div> : <p className="rounded-lg border bg-surface p-4 text-sm text-muted">No results have been intentionally published.</p>}
+  </div>;
+}
