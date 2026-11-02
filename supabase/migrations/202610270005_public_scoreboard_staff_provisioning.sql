@@ -1,15 +1,36 @@
 -- Public competition scoreboard and controlled staff provisioning.
 -- Auth identities and passwords are never created or stored by this migration.
 
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'point_awards' and column_name = 'voided_at'
+  ) then
+    raise exception 'Apply migration 202610270004_results_scoring_integrity.sql before 202610270005_public_scoreboard_staff_provisioning.sql';
+  end if;
+end;
+$$;
+
 alter table public.students
-  add column public_results_name text
+  add column if not exists public_results_name text
     check (public_results_name is null or length(trim(public_results_name)) between 2 and 160),
-  add column public_results_consent_at timestamptz,
-  add column public_results_consent_recorded_by uuid references auth.users(id) on delete restrict,
-  add constraint students_public_results_consent_check check (
-    (public_results_consent_at is null and public_results_consent_recorded_by is null)
-    or (public_results_consent_at is not null and public_results_consent_recorded_by is not null)
-  );
+  add column if not exists public_results_consent_at timestamptz,
+  add column if not exists public_results_consent_recorded_by uuid references auth.users(id) on delete restrict;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.students'::regclass and conname = 'students_public_results_consent_check'
+  ) then
+    alter table public.students add constraint students_public_results_consent_check check (
+      (public_results_consent_at is null and public_results_consent_recorded_by is null)
+      or (public_results_consent_at is not null and public_results_consent_recorded_by is not null)
+    );
+  end if;
+end;
+$$;
 
 create or replace function private.write_student_audit_log()
 returns trigger language plpgsql security definer
@@ -158,10 +179,11 @@ as $$
 $$;
 
 create or replace view public.public_house_standings with (security_invoker=true) as
-select sm.id as sports_meet_id,sm.name as meet_name,sm.year,sm.standings_status,
-  h.id as house_id,h.code as house_code,h.name as house_name,h.official_color as house_color,
+select sm.id as sports_meet_id,sm.standings_status,
+  h.id as house_id,h.code as house_code,h.name as house_name,
   coalesce(sum(pa.points),0)::numeric(12,2) as total_points,count(pa.id)::bigint as award_count,
-  max(pa.awarded_at) as last_updated_at
+  max(pa.awarded_at) as last_updated_at,
+  sm.name as meet_name,sm.year,h.official_color as house_color
 from public.sports_meets sm
 join public.meet_houses mh on mh.sports_meet_id=sm.id and mh.is_active
 join public.houses h on h.id=mh.house_id

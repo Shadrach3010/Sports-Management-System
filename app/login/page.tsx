@@ -39,8 +39,7 @@ export default function LoginPage() {
           Staff sign in
         </h2>
         <p className="mt-3 text-sm leading-6 text-muted">
-          Enter the credentials issued through the college&apos;s configured
-          Supabase Auth provider.
+          Enter the credentials issued for your CSMIS staff account.
         </p>
         <div className="mt-7">
           <SignInForm />

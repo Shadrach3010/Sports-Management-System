@@ -30,7 +30,8 @@ For Milestone 2 house administration, system administrators and sports coordinat
 ## Database enforcement
 
 - `user_roles` has no ordinary self-service write policy. Only an existing system administrator can grant roles through the Data API, and `granted_by` must equal the current authenticated user.
-- The staff provisioning function requires an existing Supabase Auth UUID, validates role scope in PostgreSQL, records the granting administrator, and never creates credentials. It remains unavailable to anonymous and ordinary authenticated users.
+- The legacy staff provisioning function still requires an existing `auth.users` UUID. It does not create a custom-login account; new account provisioning requires a separate controlled workflow.
+- Staff sign-in checks the bcrypt hash in `public.users` through a private server database connection. Only the database owner can read `password_hash`; PostgREST clients receive column-level grants for the safe directory fields. Opaque session tokens are stored as SHA-256 hashes in `private.staff_sessions`, and each protected request checks the session and active account. The server signs short-lived RLS tokens with `SUPABASE_JWT_SECRET`; this secret and `DATABASE_URL` must remain server-only.
 - The public scoreboard is served through a fixed-search-path function that returns only published results. Student names remain withheld unless an authorized staff member has recorded explicit publication authority and an approved display name.
 - Database role helpers require both an unexpired role assignment and an active staff profile, so deactivation also blocks direct Data API access.
 - Administrative routes check roles on the server, and every house, student, import, and eligibility server action repeats authorization before reading input or mutating state.

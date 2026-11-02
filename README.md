@@ -45,31 +45,17 @@ CSMIS is a secure, integrated foundation for managing the college's November 202
 
    Open [http://localhost:3000](http://localhost:3000).
 
-Authentication is not considered configured until a real project, provider settings, redirect URLs, user provisioning, and an end-to-end sign-in test are completed.
+For the demo accounts, apply migration 011 and run the login browser checks below before using the staff portal.
 
-## Initial administrator provisioning
+## Staff login and demo accounts
 
-There is no public administrator bootstrap endpoint. First create the staff account through the trusted Supabase Auth dashboard or Admin API, then run the following once as the database owner in the SQL editor, replacing both placeholders with controlled values:
+Apply migrations in filename order through `202611020011_custom_staff_login.sql`. Migration 011 adds `public.users.password_hash`, copies the existing demo bcrypt hashes from migration 009, creates private revocable sessions, and restricts the hash column from PostgREST. The database owner can see this hash in the SQL editor; browsers and the `authenticated` database role cannot select it. Passwords are never stored in plaintext.
 
-```sql
-begin;
-insert into public.profiles (id, display_name)
-values ('AUTH-USER-UUID', 'Authorized administrator');
+Configure `DATABASE_URL` with the Supabase **Session pooler** PostgreSQL URL, `SUPABASE_JWT_SECRET` with the project's legacy JWT secret, and the existing public URL and publishable key in untracked `.env.local`. Keep both server secrets out of `NEXT_PUBLIC_*` variables. CSMIS verifies credentials through a private PostgreSQL connection and stores an opaque, HTTP-only session cookie. Server-generated, short-lived JWTs let existing PostgreSQL RLS policies enforce each role. The login form does not call Supabase Auth.
 
-insert into public.user_roles (user_id, role, granted_by)
-values ('AUTH-USER-UUID', 'system_administrator', 'AUTH-USER-UUID');
-commit;
-```
+The nine mock accounts created in migrations 008–010 are available for testing only in an isolated demo project. Example: `admin@gmail.com` / `admin123`, or `viewer@gmail.com` / `view123`. These published credentials must never be used for real staff or student data. To run the login browser checks against this demo data, set `E2E_DEMO_LOGIN=1` and run `npx playwright test tests/e2e/custom-login.spec.ts`.
 
-Confirm the account, profile, MFA policy, and role in a non-production project before granting production access. Later role assignments remain protected by RLS and require an existing system administrator.
-
-## Central staff login and user provisioning
-
-All staff enter through `/login` and are redirected to `/workspace`, which displays only the workspaces allowed by their active database roles. Route layouts, server actions and PostgreSQL policies independently repeat authorization checks.
-
-The first administrator still uses the database-owner process above. After that, an administrator can open `/admin/users`, enter the UUID of an identity already created in Supabase Auth, and add its profile and explicitly scoped application role. CSMIS never accepts or stores account passwords in a database migration or staff form. House representatives require a house scope, event judges require an event scope, and global roles reject client-supplied scopes.
-
-Published individual results show a student name only after an administrator or registration officer records an approved public result name and the applicable publication authority on the protected student record. Without it, the public scoreboard displays `Name withheld`.
+Role assignments stay in `public.user_roles`; active status is checked in `public.users` and `public.profiles`. Existing legacy staff provisioning functions still reference `auth.users` and are not a custom-account creation workflow. New staff account provisioning needs a separate controlled implementation before operational use.
 
 ## Student import procedure
 

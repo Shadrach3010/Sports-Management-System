@@ -6,14 +6,14 @@ import { StaffProvisioningForm } from "@/features/users/components/staff-provisi
 export default async function UsersPage() {
   const { supabase } = await requireRoles(["system_administrator"]);
   const [
-    { data: profiles, error: profileError },
+    { data: users, error: userError },
     { data: roles, error: roleError },
     { data: houses },
     { data: events },
   ] = await Promise.all([
     supabase
-      .from("profiles")
-      .select("id,display_name,is_active,created_at")
+      .from("users")
+      .select("id,email,display_name,is_active,created_at")
       .order("display_name"),
     supabase
       .from("user_roles")
@@ -26,7 +26,7 @@ export default async function UsersPage() {
       .order("name"),
     supabase.from("events").select("id,code,name").order("name"),
   ]);
-  if (profileError || roleError)
+  if (userError || roleError)
     throw new Error("Users and roles could not be loaded.");
   const byUser = new Map<string, NonNullable<typeof roles>>();
   (roles ?? []).forEach((role) =>
@@ -37,39 +37,40 @@ export default async function UsersPage() {
       <PageHeader
         eyebrow="Administration"
         title="Users and roles"
-        description="Review centrally provisioned staff profiles and role assignments. Role changes are intentionally not exposed as public self-service."
+        description="Review staff accounts and their role assignments. Role changes are intentionally not exposed as public self-service."
       />
       <StaffProvisioningForm houses={houses ?? []} events={events ?? []} />
-      {profiles?.length ? (
+      {users?.length ? (
         <div className="overflow-x-auto rounded-xl border bg-surface shadow-sm">
           <table className="w-full text-left text-sm">
             <thead className="bg-surface-muted text-xs uppercase text-muted">
               <tr>
-                <th className="px-4 py-3">Profile</th>
+                <th className="px-4 py-3">User</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Roles</th>
                 <th className="px-4 py-3">Created</th>
               </tr>
             </thead>
             <tbody className="divide-y">
-              {profiles.map((profile) => (
-                <tr key={profile.id}>
+              {users.map((user) => (
+                <tr key={user.id}>
                   <td className="px-4 py-3">
-                    <p className="font-medium">{profile.display_name}</p>
-                    <p className="font-mono text-xs text-muted">{profile.id}</p>
+                    <p className="font-medium">{user.display_name}</p>
+                    <p className="text-xs text-muted">
+                      {user.email ?? "No email"}
+                    </p>
+                    <p className="font-mono text-xs text-muted">{user.id}</p>
                   </td>
                   <td className="px-4 py-3">
-                    <StatusBadge
-                      tone={profile.is_active ? "success" : "neutral"}
-                    >
-                      {profile.is_active ? "Active" : "Inactive"}
+                    <StatusBadge tone={user.is_active ? "success" : "neutral"}>
+                      {user.is_active ? "Active" : "Inactive"}
                     </StatusBadge>
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex flex-wrap gap-1">
-                      {byUser.get(profile.id)?.length ? (
+                      {byUser.get(user.id)?.length ? (
                         byUser
-                          .get(profile.id)!
+                          .get(user.id)!
                           .map((assignment) => (
                             <StatusBadge key={assignment.id}>
                               {assignment.role.replaceAll("_", " ")}
@@ -81,8 +82,8 @@ export default async function UsersPage() {
                     </div>
                   </td>
                   <td className="px-4 py-3">
-                    <time dateTime={profile.created_at}>
-                      {new Date(profile.created_at).toLocaleDateString()}
+                    <time dateTime={user.created_at}>
+                      {new Date(user.created_at).toLocaleDateString()}
                     </time>
                   </td>
                 </tr>
@@ -92,7 +93,7 @@ export default async function UsersPage() {
         </div>
       ) : (
         <p className="rounded-lg border bg-surface p-4 text-sm text-muted">
-          No staff profiles have been provisioned.
+          No staff users have been provisioned.
         </p>
       )}
     </div>

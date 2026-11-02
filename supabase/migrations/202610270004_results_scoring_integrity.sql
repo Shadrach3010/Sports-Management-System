@@ -2,7 +2,9 @@
 -- results, independent corrections, versioned scoring, protests, notifications,
 -- and report metadata. No official scoring values or production data are added.
 
-create table public.venues (
+begin;
+
+create table if not exists public.venues (
   id uuid primary key default extensions.gen_random_uuid(),
   sports_meet_id uuid not null references public.sports_meets(id) on delete restrict,
   code text not null check (code = upper(code) and length(code) between 2 and 20),
@@ -17,17 +19,18 @@ create table public.venues (
 );
 
 alter table public.events
-  add column venue_id uuid references public.venues(id) on delete restrict,
-  add column protest_deadline_at timestamptz;
+  add column if not exists venue_id uuid references public.venues(id) on delete restrict,
+  add column if not exists protest_deadline_at timestamptz;
 
+alter table public.event_heats drop constraint if exists event_heats_schedule_check;
 alter table public.event_heats
-  add column venue_id uuid references public.venues(id) on delete restrict,
-  add column ends_at timestamptz,
-  add column advancement_rule text check (advancement_rule is null or length(advancement_rule) <= 1000),
-  add column next_heat_id uuid references public.event_heats(id) on delete restrict,
+  add column if not exists venue_id uuid references public.venues(id) on delete restrict,
+  add column if not exists ends_at timestamptz,
+  add column if not exists advancement_rule text check (advancement_rule is null or length(advancement_rule) <= 1000),
+  add column if not exists next_heat_id uuid references public.event_heats(id) on delete restrict,
   add constraint event_heats_schedule_check check (ends_at is null or starts_at is not null and ends_at > starts_at);
 
-create table public.event_schedule_revisions (
+create table if not exists public.event_schedule_revisions (
   id uuid primary key default extensions.gen_random_uuid(),
   event_id uuid not null references public.events(id) on delete restrict,
   previous_venue_id uuid references public.venues(id) on delete restrict,
@@ -41,28 +44,37 @@ create table public.event_schedule_revisions (
   changed_at timestamptz not null default now(),
   check (new_ends_at > new_starts_at)
 );
-create index event_schedule_revisions_event_idx on public.event_schedule_revisions(event_id, changed_at desc);
+create index if not exists event_schedule_revisions_event_idx on public.event_schedule_revisions(event_id, changed_at desc);
 
 alter table public.results drop constraint if exists results_status_check;
 alter table public.results drop constraint if exists results_check1;
 alter table public.results drop constraint if exists results_check2;
 alter table public.results drop constraint if exists results_check3;
+alter table public.results drop constraint if exists results_outcome_placement_check;
+alter table public.results drop constraint if exists results_anomaly_note_check;
+alter table public.results drop constraint if exists results_anomaly_note_length_check;
+alter table public.results drop constraint if exists results_suspicious_note_required_check;
+alter table public.results drop constraint if exists results_verification_consistency;
+alter table public.results drop constraint if exists results_approval_consistency;
+alter table public.results drop constraint if exists results_publication_consistency;
+alter table public.results drop constraint if exists results_team_entry_fk;
 alter table public.results
-  add column outcome text not null default 'ranked' check (outcome in ('ranked','did_not_start','did_not_finish','disqualified','withdrawn','abandoned')),
-  add column time_milliseconds bigint check (time_milliseconds is null or time_milliseconds > 0),
-  add column distance_millimetres integer check (distance_millimetres is null or distance_millimetres > 0),
-  add column height_millimetres integer check (height_millimetres is null or height_millimetres > 0),
-  add column performance_score numeric(14,4),
-  add column tie_group text check (tie_group is null or length(trim(tie_group)) between 1 and 40),
-  add column is_suspicious boolean not null default false,
-  add column anomaly_note text check (anomaly_note is null or length(trim(anomaly_note)) between 5 and 1000),
-  add column review_reason text,
+  add column if not exists outcome text not null default 'ranked' check (outcome in ('ranked','did_not_start','did_not_finish','disqualified','withdrawn','abandoned')),
+  add column if not exists time_milliseconds bigint check (time_milliseconds is null or time_milliseconds > 0),
+  add column if not exists distance_millimetres integer check (distance_millimetres is null or distance_millimetres > 0),
+  add column if not exists height_millimetres integer check (height_millimetres is null or height_millimetres > 0),
+  add column if not exists performance_score numeric(14,4),
+  add column if not exists tie_group text check (tie_group is null or length(trim(tie_group)) between 1 and 40),
+  add column if not exists is_suspicious boolean not null default false,
+  add column if not exists anomaly_note text,
+  add column if not exists review_reason text,
   add constraint results_status_check check (status in ('draft','submitted','under_review','verified','approved','rejected','disputed','final','published')),
+  add constraint results_anomaly_note_length_check check (anomaly_note is null or length(trim(anomaly_note)) between 5 and 1000),
   add constraint results_outcome_placement_check check (
     (outcome = 'ranked' and placement is not null)
     or (outcome <> 'ranked' and placement is null)
   ) not valid,
-  add constraint results_anomaly_note_check check (not is_suspicious or anomaly_note is not null),
+  add constraint results_suspicious_note_required_check check (not is_suspicious or anomaly_note is not null),
   add constraint results_verification_consistency check (
     status not in ('verified','approved','final','published','disputed')
     or (verified_by is not null and verified_at is not null)
@@ -80,10 +92,10 @@ drop index if exists results_individual_entry_uidx;
 drop index if exists results_team_entry_uidx;
 create unique index results_individual_entry_uidx on public.results(event_id, registration_id) where registration_id is not null and status <> 'rejected';
 create unique index results_team_entry_uidx on public.results(event_id, team_entry_id) where team_entry_id is not null and status <> 'rejected';
-create unique index results_untied_placement_uidx on public.results(event_id, placement)
+create unique index if not exists results_untied_placement_uidx on public.results(event_id, placement)
   where outcome = 'ranked' and tie_group is null and status not in ('rejected','disputed');
 
-create table public.result_correction_requests (
+create table if not exists public.result_correction_requests (
   id uuid primary key default extensions.gen_random_uuid(),
   result_id uuid not null references public.results(id) on delete restrict,
   proposed_outcome text not null check (proposed_outcome in ('ranked','did_not_start','did_not_finish','disqualified','withdrawn','abandoned')),
@@ -104,15 +116,17 @@ create table public.result_correction_requests (
   check ((status = 'pending' and decided_by is null and decided_at is null) or (status in ('approved','rejected') and decided_by is not null and decided_at is not null)),
   check (decided_by is null or decided_by <> requested_by)
 );
-create unique index result_correction_pending_uidx on public.result_correction_requests(result_id) where status = 'pending';
+create unique index if not exists result_correction_pending_uidx on public.result_correction_requests(result_id) where status = 'pending';
 
 alter table public.scoring_rules drop constraint if exists scoring_rules_status_check;
 alter table public.scoring_rules drop constraint if exists scoring_rules_check;
+alter table public.scoring_rules drop constraint if exists scoring_rules_approval_check;
+alter table public.scoring_rules drop constraint if exists scoring_rules_independent_approval_check;
 alter table public.scoring_rules
-  add column tie_policy text not null default 'manual' check (tie_policy in ('manual','equal_points','shared_average')),
-  add column approved_by uuid references auth.users(id) on delete restrict,
-  add column approved_at timestamptz,
-  add column notes text,
+  add column if not exists tie_policy text not null default 'manual' check (tie_policy in ('manual','equal_points','shared_average')),
+  add column if not exists approved_by uuid references auth.users(id) on delete restrict,
+  add column if not exists approved_at timestamptz,
+  add column if not exists notes text,
   add constraint scoring_rules_status_check check (status in ('draft','pending_approval','active','retired')),
   add constraint scoring_rules_approval_check check (
     (status in ('active','retired') and approved_by is not null and approved_at is not null and activated_at is not null)
@@ -120,7 +134,7 @@ alter table public.scoring_rules
   ) not valid,
   add constraint scoring_rules_independent_approval_check check (approved_by is null or approved_by <> created_by) not valid;
 
-create table public.scoring_rule_positions (
+create table if not exists public.scoring_rule_positions (
   id uuid primary key default extensions.gen_random_uuid(),
   scoring_rule_id uuid not null references public.scoring_rules(id) on delete restrict,
   placement integer not null check (placement > 0),
@@ -129,18 +143,19 @@ create table public.scoring_rule_positions (
   unique (scoring_rule_id, placement)
 );
 
+alter table public.point_awards drop constraint if exists point_awards_void_check;
 alter table public.point_awards
-  add column voided_by uuid references auth.users(id) on delete restrict,
-  add column voided_at timestamptz,
-  add column void_reason text,
+  add column if not exists voided_by uuid references auth.users(id) on delete restrict,
+  add column if not exists voided_at timestamptz,
+  add column if not exists void_reason text,
   add constraint point_awards_void_check check (
     (voided_by is null and voided_at is null and void_reason is null)
     or (voided_by is not null and voided_at is not null and length(trim(void_reason)) >= 5)
   );
 alter table public.point_awards drop constraint if exists point_awards_result_id_scoring_rule_id_house_id_key;
-create unique index point_awards_active_uidx on public.point_awards(result_id, scoring_rule_id, house_id) where voided_at is null;
+create unique index if not exists point_awards_active_uidx on public.point_awards(result_id, scoring_rule_id, house_id) where voided_at is null;
 
-create table public.scoring_runs (
+create table if not exists public.scoring_runs (
   id uuid primary key default extensions.gen_random_uuid(),
   sports_meet_id uuid not null references public.sports_meets(id) on delete restrict,
   scoring_rule_id uuid not null references public.scoring_rules(id) on delete restrict,
@@ -150,9 +165,9 @@ create table public.scoring_runs (
   run_by uuid not null references auth.users(id) on delete restrict,
   run_at timestamptz not null default now()
 );
-create index scoring_runs_meet_idx on public.scoring_runs(sports_meet_id, run_at desc);
+create index if not exists scoring_runs_meet_idx on public.scoring_runs(sports_meet_id, run_at desc);
 
-create table public.protest_ground_categories (
+create table if not exists public.protest_ground_categories (
   id uuid primary key default extensions.gen_random_uuid(),
   sports_meet_id uuid not null references public.sports_meets(id) on delete restrict,
   code text not null check (code=upper(code) and length(code) between 2 and 30),
@@ -167,14 +182,14 @@ create table public.protest_ground_categories (
 );
 
 alter table public.protests
-  add column grounds_code text,
-  add column ground_category_id uuid references public.protest_ground_categories(id) on delete restrict,
-  add column assigned_at timestamptz,
-  add column findings text,
-  add column prior_result_status text check (prior_result_status is null or prior_result_status in ('approved','final','published')),
-  add column filed_at timestamptz not null default now();
+  add column if not exists grounds_code text,
+  add column if not exists ground_category_id uuid references public.protest_ground_categories(id) on delete restrict,
+  add column if not exists assigned_at timestamptz,
+  add column if not exists findings text,
+  add column if not exists prior_result_status text check (prior_result_status is null or prior_result_status in ('approved','final','published')),
+  add column if not exists filed_at timestamptz not null default now();
 
-create table public.protest_reviewers (
+create table if not exists public.protest_reviewers (
   id uuid primary key default extensions.gen_random_uuid(),
   protest_id uuid not null references public.protests(id) on delete restrict,
   reviewer_id uuid not null references auth.users(id) on delete restrict,
@@ -183,7 +198,7 @@ create table public.protest_reviewers (
   unique (protest_id, reviewer_id)
 );
 
-create table public.protest_evidence (
+create table if not exists public.protest_evidence (
   id uuid primary key default extensions.gen_random_uuid(),
   protest_id uuid not null references public.protests(id) on delete restrict,
   reference_type text not null check (reference_type in ('document','image','video','witness','other')),
@@ -193,7 +208,7 @@ create table public.protest_evidence (
   submitted_at timestamptz not null default now()
 );
 
-create table public.notifications (
+create table if not exists public.notifications (
   id uuid primary key default extensions.gen_random_uuid(),
   recipient_id uuid not null references auth.users(id) on delete cascade,
   notification_type text not null,
@@ -204,9 +219,9 @@ create table public.notifications (
   read_at timestamptz,
   created_at timestamptz not null default now()
 );
-create index notifications_recipient_idx on public.notifications(recipient_id, created_at desc);
+create index if not exists notifications_recipient_idx on public.notifications(recipient_id, created_at desc);
 
-create table public.report_exports (
+create table if not exists public.report_exports (
   id uuid primary key default extensions.gen_random_uuid(),
   report_type text not null check (report_type in ('event_results','house_standings','event_summary','participation_summary','audit_extract')),
   sports_meet_id uuid references public.sports_meets(id) on delete restrict,
@@ -218,11 +233,11 @@ create table public.report_exports (
 );
 
 alter table public.sports_meets
-  add column standings_status text not null default 'provisional'
+  add column if not exists standings_status text not null default 'provisional'
     check (standings_status in ('provisional','confirmed','final')),
-  add column standings_status_reason text,
-  add column standings_status_changed_by uuid references auth.users(id) on delete restrict,
-  add column standings_status_changed_at timestamptz;
+  add column if not exists standings_status_reason text,
+  add column if not exists standings_status_changed_by uuid references auth.users(id) on delete restrict,
+  add column if not exists standings_status_changed_at timestamptz;
 
 create or replace function private.guard_event_schedule_conflict()
 returns trigger language plpgsql set search_path = pg_catalog
@@ -642,6 +657,24 @@ begin
 end;
 $$;
 
+drop trigger if exists venue_updated_at on public.venues;
+drop trigger if exists protest_ground_categories_updated_at on public.protest_ground_categories;
+drop trigger if exists result_tie_validation on public.results;
+drop trigger if exists event_schedule_conflict on public.events;
+drop trigger if exists heat_schedule_conflict on public.event_heats;
+drop trigger if exists schedule_revisions_append_only on public.event_schedule_revisions;
+drop trigger if exists correction_requests_append_only on public.result_correction_requests;
+drop trigger if exists scoring_runs_append_only on public.scoring_runs;
+drop trigger if exists protest_reviewers_append_only on public.protest_reviewers;
+drop trigger if exists report_exports_append_only on public.report_exports;
+drop trigger if exists audit_venues on public.venues;
+drop trigger if exists audit_result_corrections on public.result_correction_requests;
+drop trigger if exists audit_scoring_positions on public.scoring_rule_positions;
+drop trigger if exists audit_protest_reviewers on public.protest_reviewers;
+drop trigger if exists audit_protest_evidence on public.protest_evidence;
+drop trigger if exists audit_protest_ground_categories on public.protest_ground_categories;
+drop trigger if exists point_awards_controlled_void on public.point_awards;
+
 create trigger venue_updated_at before update on public.venues for each row execute function private.set_updated_at();
 create trigger protest_ground_categories_updated_at before update on public.protest_ground_categories for each row execute function private.set_updated_at();
 create trigger result_tie_validation before insert or update of outcome,placement,tie_group,status on public.results for each row execute function private.validate_result_tie();
@@ -681,6 +714,27 @@ grant select on public.venues,public.scoring_rule_positions to anon;
 grant insert,update on public.venues,public.scoring_rules,public.scoring_rule_positions to authenticated;
 grant insert on public.protest_evidence,public.report_exports to authenticated;
 revoke insert,update on public.results,public.point_awards,public.protests from authenticated;
+
+drop policy if exists venues_public_read on public.venues;
+drop policy if exists venues_staff_read on public.venues;
+drop policy if exists venues_manager_write on public.venues;
+drop policy if exists schedule_revisions_staff_read on public.event_schedule_revisions;
+drop policy if exists correction_requests_staff_read on public.result_correction_requests;
+drop policy if exists scoring_positions_public_read on public.scoring_rule_positions;
+drop policy if exists scoring_positions_staff_read on public.scoring_rule_positions;
+drop policy if exists scoring_positions_manager_write on public.scoring_rule_positions;
+drop policy if exists scoring_runs_manager_read on public.scoring_runs;
+drop policy if exists protest_reviewers_relevant_read on public.protest_reviewers;
+drop policy if exists protest_evidence_relevant_read on public.protest_evidence;
+drop policy if exists protest_evidence_submit on public.protest_evidence;
+drop policy if exists notifications_own_read on public.notifications;
+drop policy if exists report_exports_own_read on public.report_exports;
+drop policy if exists report_exports_create on public.report_exports;
+drop policy if exists protest_ground_categories_read on public.protest_ground_categories;
+drop policy if exists protest_ground_categories_insert on public.protest_ground_categories;
+drop policy if exists protest_ground_categories_update on public.protest_ground_categories;
+drop policy if exists scoring_rules_manager_insert on public.scoring_rules;
+drop policy if exists scoring_rules_manager_update on public.scoring_rules;
 
 create policy venues_public_read on public.venues for select to anon using(is_active and exists(select 1 from public.sports_meets sm where sm.id=sports_meet_id and sm.published_at is not null));
 create policy venues_staff_read on public.venues for select to authenticated using(is_active or private.has_role('system_administrator') or private.has_role('sports_coordinator'));
@@ -754,3 +808,5 @@ grant execute on function public.set_standings_status(uuid,text,text) to authent
 grant execute on function public.file_protest(uuid,text,text) to authenticated;
 grant execute on function public.assign_protest_reviewer(uuid,uuid) to authenticated;
 grant execute on function public.decide_protest(uuid,boolean,text,text) to authenticated;
+
+commit;

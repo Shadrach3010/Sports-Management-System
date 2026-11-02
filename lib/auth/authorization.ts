@@ -3,6 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { createClient } from "@/lib/supabase/server";
+import { currentUserId } from "@/lib/auth/session";
 import type { ApplicationRole } from "@/lib/auth/roles";
 
 export class AuthenticationRequiredError extends Error {}
@@ -17,14 +18,11 @@ export type AuthorizedContext = {
 export async function requireRoles(
   allowedRoles: readonly ApplicationRole[],
 ): Promise<AuthorizedContext> {
-  const supabase = await createClient();
-  const { data: claimsData, error: claimsError } =
-    await supabase.auth.getClaims();
-  const userId = claimsData?.claims?.sub;
-
-  if (claimsError || typeof userId !== "string") {
+  const userId = await currentUserId();
+  if (!userId) {
     throw new AuthenticationRequiredError("A verified session is required.");
   }
+  const supabase = await createClient();
 
   const [
     { data: roleRows, error: roleError },

@@ -1,17 +1,14 @@
 import Link from "next/link";
 import {
-  ArrowRight,
   CalendarDays,
   ChevronRight,
   Medal,
   ShieldCheck,
-  Sparkles,
   Timer,
   Trophy,
   Users,
 } from "lucide-react";
 
-import { buttonVariants } from "@/components/ui/button";
 import { StatusBadge } from "@/components/ui/status-badge";
 
 type Standing = {
@@ -100,88 +97,17 @@ export function CompetitionHome({
 
   return (
     <div className="space-y-10 pb-8">
-      <section className="relative isolate overflow-hidden rounded-[2rem] bg-scoreboard px-6 py-8 text-white shadow-2xl shadow-slate-950/20 sm:px-10 sm:py-12 lg:px-14 lg:py-16">
-        <div className="absolute inset-y-0 right-0 hidden w-[44%] skew-x-[-12deg] bg-track-orange/95 lg:block" />
-        <div className="absolute -right-16 -top-28 size-80 rounded-full border-[42px] border-white/10" />
-        <div className="relative z-10 grid items-end gap-10 lg:grid-cols-[1.15fr_0.85fr]">
-          <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-bold uppercase tracking-[0.2em] backdrop-blur">
-              <Sparkles
-                className="size-3.5 text-track-orange"
-                aria-hidden="true"
-              />
-              Live competition centre
-            </div>
-            <h1 className="mt-6 max-w-3xl text-4xl font-black uppercase leading-[0.95] tracking-[-0.045em] sm:text-6xl lg:text-7xl">
-              Every result.
-              <span className="block text-track-orange">Every point.</span>
-              Fully traceable.
-            </h1>
-            <p className="mt-6 max-w-2xl text-base leading-7 text-slate-200 sm:text-lg">
-              Follow the house championship and verified event results from the
-              college&apos;s official competition integrity system.
-            </p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Link
-                className={buttonVariants({ variant: "sport" })}
-                href="#leaderboard"
-              >
-                View leaderboard <ArrowRight className="ml-2 size-4" />
-              </Link>
-              <Link
-                className={buttonVariants({ variant: "outline" })}
-                href="/public/results"
-              >
-                All published results
-              </Link>
-            </div>
-          </div>
-          <div className="relative rounded-2xl border border-white/15 bg-slate-950/35 p-5 backdrop-blur-md lg:ml-12">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-300">
-              Current competition
-            </p>
-            <p className="mt-3 text-2xl font-bold">{meetName}</p>
-            <div className="mt-6 grid grid-cols-2 gap-3">
-              <div className="rounded-xl bg-white/10 p-4">
-                <Trophy
-                  className="size-5 text-track-orange"
-                  aria-hidden="true"
-                />
-                <p className="mt-3 text-2xl font-black">
-                  {activeStandings.length}
-                </p>
-                <p className="text-xs text-slate-300">Competing houses</p>
-              </div>
-              <div className="rounded-xl bg-white/10 p-4">
-                <Medal
-                  className="size-5 text-track-orange"
-                  aria-hidden="true"
-                />
-                <p className="mt-3 text-2xl font-black">
-                  {activeResults.length}
-                </p>
-                <p className="text-xs text-slate-300">Published results</p>
-              </div>
-            </div>
-            <div className="mt-4 flex items-center justify-between border-t border-white/10 pt-4 text-xs">
-              <span className="font-bold uppercase tracking-wider">
-                {declaration}
-              </span>
-              <span className="text-right text-slate-300">
-                {latestUpdate
-                  ? `Updated ${new Date(latestUpdate).toLocaleString()}`
-                  : "Awaiting official scores"}
-              </span>
-            </div>
-          </div>
-        </div>
-      </section>
-
       <section id="leaderboard" className="scroll-mt-24">
         <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="section-kicker">House championship</p>
-            <h2 className="section-title">Leaderboard</h2>
+            <h1 className="section-title">Leaderboard</h1>
+            <p className="mt-2 text-sm text-muted">
+              {meetName} ·{" "}
+              {latestUpdate
+                ? `Updated ${new Date(latestUpdate).toLocaleString()}`
+                : "Awaiting official scores"}
+            </p>
           </div>
           <StatusBadge tone={declaration === "final" ? "success" : "warning"}>
             {declaration} standings

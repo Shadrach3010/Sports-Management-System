@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import type { ActionState } from "@/features/shared/action-state";
-import { createClient } from "@/lib/supabase/server";
+import { signIn, signOut } from "@/lib/auth/session";
 
 const signInSchema = z.object({
   email: z.email().trim().toLowerCase(),
@@ -24,9 +24,16 @@ export async function signInAction(
       status: "error",
       message: "Enter a valid staff email address and password.",
     };
-  const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword(parsed.data);
-  if (error)
+  let authenticated = false;
+  try {
+    authenticated = await signIn(parsed.data.email, parsed.data.password);
+  } catch {
+    return {
+      status: "error",
+      message: "The sign-in service is unavailable. Please try again later.",
+    };
+  }
+  if (!authenticated)
     return {
       status: "error",
       message: "Sign-in failed. Check the credentials and account status.",
@@ -35,7 +42,6 @@ export async function signInAction(
 }
 
 export async function signOutAction() {
-  const supabase = await createClient();
-  await supabase.auth.signOut();
+  await signOut();
   redirect("/login");
 }
