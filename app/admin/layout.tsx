@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+export const instant = false;
 
 import { AdminShell } from "@/components/admin/admin-shell";
 import {

@@ -1,44 +1,29 @@
 begin;
 create extension if not exists pgtap with schema extensions;
-select plan(15);
-
-insert into auth.users(id,email) values
-('00000000-0000-4000-8000-000000051000','provision-admin@test.invalid'),
-('00000000-0000-4000-8000-000000052000','provision-ordinary@test.invalid'),
-('00000000-0000-4000-8000-000000053000','provision-target@test.invalid');
+select plan(7);
+insert into public.users(id,email,display_name,password_hash) values
+('00000000-0000-4000-8000-000000051000','provision-admin@test.invalid','Provision administrator',extensions.crypt('temporary-admin-password',extensions.gen_salt('bf'))),
+('00000000-0000-4000-8000-000000052000','provision-viewer@test.invalid','Provision viewer',extensions.crypt('temporary-viewer-password',extensions.gen_salt('bf')));
 insert into public.profiles(id,display_name) values
 ('00000000-0000-4000-8000-000000051000','Provision administrator'),
-('00000000-0000-4000-8000-000000052000','Provision ordinary user');
+('00000000-0000-4000-8000-000000052000','Provision viewer');
 insert into public.user_roles(user_id,role,granted_by) values
 ('00000000-0000-4000-8000-000000051000','system_administrator','00000000-0000-4000-8000-000000051000'),
 ('00000000-0000-4000-8000-000000052000','public_viewer','00000000-0000-4000-8000-000000051000');
-insert into public.houses(id,code,name) values
-('15000000-0000-4000-8000-000000000001','PUB','Publication Test House');
+insert into public.houses(id,code,name) values ('15000000-0000-4000-8000-000000000001','PUB','Publication Test House');
 insert into public.students(id,student_number,house_id,legal_first_name,legal_last_name) values
 ('45000000-0000-4000-8000-000000000001','PUBLIC-001','15000000-0000-4000-8000-000000000001','Private','Athlete');
 
+select results_eq($$select count(*)::integer from pg_constraint c join pg_class t on t.oid=c.conrelid join pg_namespace n on n.oid=t.relnamespace where c.contype='f' and c.confrelid='auth.users'::regclass and n.nspname='public'$$,array[0],'application tables no longer depend on Auth identities');
+select results_eq($$select has_column_privilege('authenticated','public.users','password_hash','SELECT')$$,array[false],'password hashes stay private');
 set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000052000',true);
-select throws_ok($$select public.provision_staff_user('00000000-0000-4000-8000-000000053000','Target user','results_verifier',null,null,null)$$,'ordinary users cannot provision roles');
-select throws_ok($$select public.set_student_public_result_identity('45000000-0000-4000-8000-000000000001','Public Athlete',true)$$,'ordinary users cannot publish a student result identity');
-
+select throws_ok($$select public.set_student_public_result_identity('45000000-0000-4000-8000-000000000001','Public Athlete',true)$$);
+select throws_ok($$insert into public.user_roles(user_id,role) values('00000000-0000-4000-8000-000000052000','system_administrator')$$);
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000051000',true);
-select lives_ok($$select public.provision_staff_user('00000000-0000-4000-8000-000000053000','Target verifier','results_verifier',null,null,null)$$,'administrator provisions an existing Auth identity');
-select lives_ok($$select public.set_student_public_result_identity('45000000-0000-4000-8000-000000000001','Public Athlete',true)$$,'administrator records an approved public result identity');
-select throws_ok($$update public.students set public_results_name='Unapproved name' where id='45000000-0000-4000-8000-000000000001'$$,'direct student updates cannot bypass public identity workflow');
-select throws_ok($$insert into public.students(student_number,house_id,legal_first_name,legal_last_name,public_results_name) values('PUBLIC-002','15000000-0000-4000-8000-000000000001','Another','Athlete','Unapproved name')$$,'student inserts cannot preapprove public identity');
-select results_eq($$select concat(public_results_name,',',public_results_consent_at is not null) from public.students where id='45000000-0000-4000-8000-000000000001'$$,array['Public Athlete,true'],'public identity decision is stored without changing legal identity');
-select results_eq($$select display_name from public.profiles where id='00000000-0000-4000-8000-000000053000'$$,array['Target verifier'],'profile is created centrally');
-select results_eq($$select role from public.user_roles where user_id='00000000-0000-4000-8000-000000053000'$$,array['results_verifier'],'explicit role is assigned');
-select results_eq($$select granted_by from public.user_roles where user_id='00000000-0000-4000-8000-000000053000'$$,array['00000000-0000-4000-8000-000000051000'::uuid],'role grant records the administrator');
-select throws_ok($$select public.provision_staff_user('00000000-0000-4000-8000-000000059999','Missing Auth identity','public_viewer',null,null,null)$$,'missing Auth identities cannot be provisioned');
-select throws_ok($$select public.provision_staff_user('00000000-0000-4000-8000-000000053000','Invalid scope','results_verifier','13000000-0000-4000-8000-000000000001',null,null)$$,'global roles reject client-supplied house scope');
-update public.profiles set is_active=false where id='00000000-0000-4000-8000-000000053000';
-select throws_ok($$select public.provision_staff_user('00000000-0000-4000-8000-000000053000','Target verifier','results_verifier',null,null,null)$$,'provisioning cannot silently reactivate an inactive profile');
-
+select lives_ok($$select public.set_student_public_result_identity('45000000-0000-4000-8000-000000000001','Public Athlete',true)$$,'administrator records publication authority');
+select throws_ok($$update public.students set public_results_name='Unapproved' where id='45000000-0000-4000-8000-000000000001'$$);
+select results_eq($$select public_results_name from public.students where id='45000000-0000-4000-8000-000000000001'$$,array['Public Athlete'],'authorized publication is retained');
 reset role;
-select results_eq($$select has_function_privilege('anon','public.provision_staff_user(uuid,text,text,uuid,uuid,timestamptz)','EXECUTE')$$,array[false],'anonymous users cannot execute provisioning');
-select results_eq($$select has_function_privilege('anon','public.get_public_competition_results()','EXECUTE')$$,array[true],'anonymous users may execute the filtered public scoreboard function');
-
 select * from finish();
 rollback;

@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   Building2,
   CalendarRange,
@@ -13,6 +16,9 @@ import {
   ShieldCheck,
   Trophy,
   Users,
+  Bell,
+  ScanLine,
+  Eye,
 } from "lucide-react";
 
 import type { ApplicationRole } from "@/lib/auth/roles";
@@ -20,7 +26,44 @@ import { cn } from "@/lib/utils";
 import { signOutAction } from "@/features/auth/actions";
 
 const items = [
-  { label: "Overview", href: "/admin", icon: Gauge },
+  { label: "Overview", href: "/dashboard", icon: Gauge },
+  {
+    label: "Operations",
+    href: "/admin",
+    icon: ShieldCheck,
+    roles: [
+      "system_administrator",
+      "sports_coordinator",
+      "registration_officer",
+      "results_verifier",
+      "protest_committee",
+    ],
+  },
+  {
+    label: "Athlete registration",
+    href: "/registration",
+    icon: ClipboardCheck,
+    roles: ["house_representative"],
+  },
+  {
+    label: "Event check-in",
+    href: "/check-in",
+    icon: ScanLine,
+    roles: ["check_in_officer", "system_administrator", "sports_coordinator"],
+  },
+  {
+    label: "Result entry",
+    href: "/result-entry",
+    icon: Medal,
+    roles: ["event_judge"],
+  },
+  {
+    label: "Public scoreboard",
+    href: "/",
+    icon: Eye,
+    roles: ["public_viewer"],
+  },
+  { label: "Notifications", href: "/notifications", icon: Bell },
   {
     label: "Sports meets",
     href: "/admin/meets",
@@ -53,7 +96,12 @@ const items = [
     label: "Integrity cases",
     href: "/protests",
     icon: Scale,
-    roles: ["system_administrator", "sports_coordinator", "protest_committee"],
+    roles: [
+      "system_administrator",
+      "sports_coordinator",
+      "protest_committee",
+      "house_representative",
+    ],
   },
   {
     label: "Reports",
@@ -109,6 +157,7 @@ export function AdminShell({
   children: React.ReactNode;
   roles: ApplicationRole[];
 }) {
+  const pathname = usePathname();
   const isAdministrator = roles.includes("system_administrator");
   return (
     <div className="grid gap-6 lg:grid-cols-[15rem_minmax(0,1fr)]">
@@ -118,12 +167,14 @@ export function AdminShell({
             <ShieldCheck aria-hidden="true" className="size-4" />
           </span>
           <div>
-            <p className="text-sm font-semibold">Administration</p>
-            <p className="text-xs text-slate-400">Trusted staff workspace</p>
+            <p className="text-sm font-semibold">CSMIS workspace</p>
+            <p className="text-xs text-slate-400">
+              Your active role navigation
+            </p>
           </div>
         </div>
         <nav
-          aria-label="Administration"
+          aria-label="Staff workspace"
           className="mt-3 flex gap-1 overflow-x-auto lg:flex-col"
         >
           {items
@@ -139,8 +190,18 @@ export function AdminShell({
               <Link
                 key={href}
                 href={href}
+                aria-current={
+                  pathname === href ||
+                  (href !== "/" && pathname.startsWith(`${href}/`))
+                    ? "page"
+                    : undefined
+                }
                 className={cn(
-                  "flex shrink-0 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-bold text-slate-300 transition hover:bg-white/10 hover:text-white",
+                  "flex shrink-0 items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-bold transition duration-200 hover:translate-x-0.5 hover:bg-white/10 hover:text-white",
+                  pathname === href ||
+                    (href !== "/" && pathname.startsWith(`${href}/`))
+                    ? "bg-white/15 text-white ring-1 ring-white/20"
+                    : "text-slate-300",
                 )}
               >
                 <Icon aria-hidden="true" className="size-4" />

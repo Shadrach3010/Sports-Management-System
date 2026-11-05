@@ -3,6 +3,11 @@ import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/admin/page-header";
 import { RegistrationWorkspace } from "@/features/registrations/components/registration-workspace";
 import { requireRoles } from "@/lib/auth/authorization";
+import { databaseNow } from "@/lib/auth/session";
+import {
+  relatedMeet,
+  registrationAvailability,
+} from "@/features/registrations/availability";
 
 export default async function EventRegistrationPage({
   params,
@@ -25,11 +30,21 @@ export default async function EventRegistrationPage({
       .maybeSingle(),
     supabase
       .from("events")
-      .select("id,name,event_type,roster_status,registration_status")
+      .select(
+        "id,name,event_type,roster_status,registration_status,sports_meets(status,registration_opens_at,registration_closes_at)",
+      )
       .eq("id", eventId)
       .maybeSingle(),
   ]);
   if (!assignment?.house_id || !event) notFound();
+  const now = await databaseNow();
+  const availability = registrationAvailability(
+    event.registration_status,
+    event.roster_status,
+    relatedMeet(event.sports_meets),
+    now,
+  );
+  const registrationOpen = availability === "open";
   const safeQ = q
     .replace(/[^\p{L}\p{N}\s'’-]/gu, " ")
     .trim()
@@ -86,6 +101,8 @@ export default async function EventRegistrationPage({
         houseId={assignment.house_id}
         eventType={event.event_type}
         rosterLocked={event.roster_status === "locked"}
+        registrationOpen={registrationOpen}
+        availability={availability}
         students={students ?? []}
         teams={teams ?? []}
         registrations={(registrations ?? []) as never}

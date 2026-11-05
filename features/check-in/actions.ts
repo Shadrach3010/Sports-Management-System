@@ -17,6 +17,35 @@ const schema = z.object({
   identityConfirmed: z.literal("true"),
 });
 
+function checkInErrorMessage(
+  error: { code?: string; message: string },
+  method: "qr" | "manual",
+) {
+  const message = error.message.toLowerCase();
+  if (
+    error.code === "23505" ||
+    message.includes("duplicate key") ||
+    message.includes("already checked")
+  )
+    return "This athlete has already checked in. A correction requires independent authorization.";
+  if (message.includes("check-in is not open"))
+    return "Check-in is closed for this event. A meet manager must open event check-in first.";
+  if (message.includes("assigned check-in officer role required"))
+    return "You are not assigned to check in athletes for this event.";
+  if (message.includes("physical identity confirmation"))
+    return "Confirm the athlete's physical identity before check-in.";
+  if (
+    message.includes("invalid registration token") ||
+    message.includes("token does not identify")
+  )
+    return "The pass is invalid, revoked, or belongs to another event. Ask for the current pass.";
+  if (message.includes("manual check-in requires an approved entry"))
+    return "This athlete's roster entry is not approved or has already been checked in.";
+  return method === "qr"
+    ? "QR check-in was denied. Verify the event, pass, and approved entry."
+    : "Manual check-in was denied. Verify the event and approved entry.";
+}
+
 export async function tokenCheckInAction(
   _state: ActionState<CheckInResult>,
   formData: FormData,
@@ -41,15 +70,7 @@ export async function tokenCheckInAction(
       p_identity_confirmed: true,
     });
     if (error)
-      return {
-        status: "error",
-        message:
-          error.code === "23505" || error.message.includes("unique")
-            ? "This athlete has already checked in. A correction requires independent authorization."
-            : error.message.includes("invalid")
-              ? "The token is invalid, revoked, or belongs to another event."
-              : "Check-in was denied.",
-      };
+      return { status: "error", message: checkInErrorMessage(error, "qr") };
     const row = (
       data as
         | { student_number: string; display_name: string; house_name: string }[]
@@ -102,13 +123,7 @@ export async function manualCheckInAction(
       p_reason: parsed.data.reason,
     });
     if (error)
-      return {
-        status: "error",
-        message:
-          error.code === "23505"
-            ? "This athlete has already checked in."
-            : "Manual check-in was denied.",
-      };
+      return { status: "error", message: checkInErrorMessage(error, "manual") };
     revalidatePath(`/check-in/${parsed.data.eventId}`);
     return {
       status: "success",

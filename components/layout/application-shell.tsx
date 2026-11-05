@@ -1,11 +1,11 @@
+import { Suspense } from "react";
 import Link from "next/link";
-import { CalendarDays, LockKeyhole, ShieldCheck, Trophy } from "lucide-react";
+import { CalendarDays, ShieldCheck, Trophy } from "lucide-react";
 
-const navigation = [
-  { label: "Scoreboard", href: "/" },
-  { label: "Results", href: "/public/results" },
-  { label: "Standings", href: "/standings" },
-];
+import {
+  ActiveNavigation,
+  StaffPortalLink,
+} from "@/components/layout/active-navigation";
 
 export function ApplicationShell({ children }: { children: React.ReactNode }) {
   return (
@@ -31,20 +31,13 @@ export function ApplicationShell({ children }: { children: React.ReactNode }) {
               </span>
             </span>
           </Link>
-          <nav
-            aria-label="Primary"
-            className="ml-auto hidden items-center gap-1 md:flex"
+          <Suspense
+            fallback={
+              <nav aria-label="Primary" className="ml-auto hidden md:flex" />
+            }
           >
-            {navigation.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="rounded-lg px-3 py-2 text-sm font-bold text-slate-300 transition-colors hover:bg-white/10 hover:text-white"
-              >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
+            <ActiveNavigation />
+          </Suspense>
           <div className="ml-auto flex items-center gap-2 md:ml-4">
             <span className="hidden items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold text-slate-300 xl:flex">
               <CalendarDays
@@ -53,29 +46,23 @@ export function ApplicationShell({ children }: { children: React.ReactNode }) {
               />
               NOV 2026
             </span>
-            <Link
-              className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm font-bold text-slate-950 transition hover:bg-slate-100"
-              href="/workspace"
+            <Suspense
+              fallback={
+                <Link
+                  href="/dashboard"
+                  className="rounded-lg bg-white px-3 py-2 text-sm font-bold text-slate-950"
+                >
+                  Staff portal
+                </Link>
+              }
             >
-              <LockKeyhole className="size-4" aria-hidden="true" />
-              Staff portal
-            </Link>
+              <StaffPortalLink />
+            </Suspense>
           </div>
         </div>
-        <nav
-          aria-label="Primary mobile"
-          className="mx-auto flex max-w-7xl gap-1 overflow-x-auto border-t border-white/10 px-4 py-2 md:hidden"
-        >
-          {navigation.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="shrink-0 rounded-md px-3 py-2 text-sm font-bold text-slate-300 hover:bg-white/10 hover:text-white"
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
+        <Suspense fallback={null}>
+          <ActiveNavigation mobile />
+        </Suspense>
       </header>
       <main
         id="main-content"

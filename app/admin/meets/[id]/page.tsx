@@ -7,6 +7,8 @@ import { ScheduleManager } from "@/features/meets/components/schedule-manager";
 import { requireRoles } from "@/lib/auth/authorization";
 import { meetManagerRoles } from "@/lib/auth/roles";
 
+export const instant = false;
+
 export default async function MeetDetailPage({
   params,
 }: {
@@ -16,12 +18,12 @@ export default async function MeetDetailPage({
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
   const { supabase } = await requireRoles(meetManagerRoles);
   const [
-    { data: meet },
-    { data: houses },
-    { data: participation },
-    { data: categories },
-    { data: events },
-    { data: venues },
+    { data: meet, error: meetError },
+    { data: houses, error: houseError },
+    { data: participation, error: participationError },
+    { data: categories, error: categoryError },
+    { data: events, error: eventError },
+    { data: venues, error: venueError },
   ] = await Promise.all([
     supabase
       .from("sports_meets")
@@ -58,6 +60,15 @@ export default async function MeetDetailPage({
       .eq("is_active", true)
       .order("name"),
   ]);
+  if (
+    meetError ||
+    houseError ||
+    participationError ||
+    categoryError ||
+    eventError ||
+    venueError
+  )
+    throw new Error("Meet configuration could not be loaded.");
   if (!meet) notFound();
   const active = new Set(
     (participation ?? [])

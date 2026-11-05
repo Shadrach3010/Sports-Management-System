@@ -1,20 +1,23 @@
 import { redirect } from "next/navigation";
+import { AdminShell } from "@/components/admin/admin-shell";
+export const instant = false;
 import {
   AuthenticationRequiredError,
   requireRoles,
 } from "@/lib/auth/authorization";
-import { protestWorkspaceRoles } from "@/lib/auth/roles";
+import { protestWorkspaceRoles, type ApplicationRole } from "@/lib/auth/roles";
 
 export default async function ProtestsLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  let roles: ApplicationRole[];
   try {
-    await requireRoles(protestWorkspaceRoles);
+    ({ roles } = await requireRoles(protestWorkspaceRoles));
   } catch (error) {
     if (error instanceof AuthenticationRequiredError) redirect("/login");
     redirect("/unauthorized");
   }
-  return children;
+  return <AdminShell roles={roles}>{children}</AdminShell>;
 }

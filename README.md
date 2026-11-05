@@ -1,6 +1,6 @@
 # College Sports Management & Integrity System
 
-CSMIS is a secure, integrated foundation for managing the college's November 2026 sports meet. It covers trusted student imports, meet/event setup, individual and team registration, independent roster review, identity-confirmed check-in, structured results, independent verification, versioned scoring, protests, published results, standings and controlled reports. It contains no production student data, no invented official scoring values, and does **not** claim that authentication works until a real Supabase project and sign-in flow are configured and tested.
+CSMIS is a college sports meet system for November 2026. It covers trusted student imports, meet/event setup, individual and team registration, independent roster review, identity-confirmed check-in, structured results, independent verification, versioned scoring, protests, published results, standings and controlled reports. The checked-in demo migrations use custom staff accounts in `public.users` and do not invent official scoring values. Data added to a configured project must be reviewed separately from these fixtures.
 
 ## Prerequisites
 
@@ -49,13 +49,19 @@ For the demo accounts, apply migration 011 and run the login browser checks belo
 
 ## Staff login and demo accounts
 
-Apply migrations in filename order through `202611020011_custom_staff_login.sql`. Migration 011 adds `public.users.password_hash`, copies the existing demo bcrypt hashes from migration 009, creates private revocable sessions, and restricts the hash column from PostgREST. The database owner can see this hash in the SQL editor; browsers and the `authenticated` database role cannot select it. Passwords are never stored in plaintext.
+Apply migrations in filename order through `202611040019_protest_published_result_transition.sql`. Migration 011 adds `public.users.password_hash`, copies the existing demo bcrypt hashes from migration 009, creates private revocable sessions, and restricts the hash column from PostgREST. Migration 012 removes the meet/event RLS read-policy cycle. Migration 013 moves application staff references to `public.users` and repairs the controlled student publication guard. Migration 014 records account removal without erasing audit references. Migration 015 requires at least one event before registration opens and lets an eventless, unscored meet return to draft. Migration 016 freezes event lifecycle changes after a meet is completed, cancelled, or archived. Migration 017 retires the obsolete Supabase Auth metadata importer. Migration 018 permits trusted attendance state changes on locked rosters. Migration 019 lets a valid protest move a published result to disputed without changing its approved payload. The database owner can see the password hash in the SQL editor; browsers and the `authenticated` database role cannot select it. Passwords are never stored in plaintext.
 
 Configure `DATABASE_URL` with the Supabase **Session pooler** PostgreSQL URL, `SUPABASE_JWT_SECRET` with the project's legacy JWT secret, and the existing public URL and publishable key in untracked `.env.local`. Keep both server secrets out of `NEXT_PUBLIC_*` variables. CSMIS verifies credentials through a private PostgreSQL connection and stores an opaque, HTTP-only session cookie. Server-generated, short-lived JWTs let existing PostgreSQL RLS policies enforce each role. The login form does not call Supabase Auth.
 
 The nine mock accounts created in migrations 008–010 are available for testing only in an isolated demo project. Example: `admin@gmail.com` / `admin123`, or `viewer@gmail.com` / `view123`. These published credentials must never be used for real staff or student data. To run the login browser checks against this demo data, set `E2E_DEMO_LOGIN=1` and run `npx playwright test tests/e2e/custom-login.spec.ts`.
 
-Role assignments stay in `public.user_roles`; active status is checked in `public.users` and `public.profiles`. Existing legacy staff provisioning functions still reference `auth.users` and are not a custom-account creation workflow. New staff account provisioning needs a separate controlled implementation before operational use.
+Role assignments stay in `public.user_roles`; active status is checked in `public.users` and `public.profiles`. Administrators create staff accounts at `/admin/users` with email, display name, an initial password of at least 12 characters, and a scoped role. The server checks administrator authority again inside the account creation transaction. Apply migration 013 before using this form or student publication.
+
+Apply migration 014 for account management. A system administrator uses the edit, status, and delete icons in `/admin/users`; each opens a confirmation or edit dialog. They can edit an account's name, email, and single role with its required scope, deactivate or reactivate access, and remove it from the active directory. Removal is a soft deletion: the account cannot sign in or be restored through the form, while audit and competition references remain intact. Deactivation revokes active sessions. Administrators cannot remove their own access or the last active administrator. Accounts with multiple roles require a separate role-management decision before their role can be edited.
+
+The seeded demo meet and events may remain in draft/closed state. A system administrator or sports coordinator must open the meet and each event from `/admin/meets` before a house representative can add athletes. The registration cards show the effective state, including the meet registration window. Create participating houses and a sport category first, then add at least one event while the meet is **draft**. Once registration opens, event configuration is locked. An older meet that opened with zero events can be returned to draft from `/admin/meets` if it has no scoring data.
+
+In **Scoring policy**, an administrator or sports coordinator creates a versioned policy for a meet, enters official placement points, and submits it for independent approval. A different authorized manager activates the policy. The active version can then be assigned to an event in the same meet with an audit reason. The application does not invent official point values, and existing approved awards retain their scoring-rule version.
 
 ## Student import procedure
 
@@ -70,13 +76,17 @@ The application parses files in trusted server code, never executes formulas or 
 
 ## Meet and athlete-registration procedure
 
-1. A system administrator or sports coordinator creates the meet at `/admin/meets`, sets its registration window, participating houses, sport categories, events, formats, schedules, limits, and rules, then opens registration. Configuration becomes immutable once registration opens.
+1. A system administrator or sports coordinator creates the meet at `/admin/meets`, sets its registration window, participating houses, sport categories, events, formats, schedules, limits, and rules while it is **draft**, then opens registration. At least one event is required. Configuration becomes immutable once registration opens. When registration ends, close the meet before opening event check-in; after the event starts, move the meet to `in_progress` before moving the event to `in_progress`.
 2. A house representative opens `/registration`, selects an event, creates teams where required, adds only enrolled and verified-eligible students from their own house, then explicitly submits the roster.
 3. A different administrator, coordinator, or registration officer reviews the submission at `/admin/registrations`. The submitter cannot approve the same roster.
 4. After registration closes and every submitted roster has a decision, an authorized reviewer locks the event roster. Locking is irreversible through ordinary workflows.
 5. Any post-lock addition starts as a reasoned house request. Only a system administrator or sports coordinator other than the requester can approve it; the decision and resulting registration remain auditable.
-6. After lock, an authorized user may issue or rotate an opaque QR pass. Only a hash is stored. An assigned check-in officer opens `/check-in`, selects the event, scans/types the token or uses the documented manual fallback, and must confirm the physical identity before attendance is recorded.
+6. After lock, an authorized user may issue or rotate an opaque QR pass. Only a hash is stored. A meet manager must separately change the event lifecycle from `scheduled` to `check_in_open` in meet configuration. Registration being open does not open check-in. An assigned check-in officer opens `/check-in`, selects the event, uses **Scan QR pass** to start the camera (localhost or HTTPS and camera permission required), types the token if needed, or selects the reasoned manual fallback. They must confirm physical identity before attendance is recorded. If the event is still scheduled, the page displays the blocking status and disables attendance submission.
 7. Attendance corrections require an independent administrator/coordinator, a reason, and an immutable correction entry.
+
+After independent roster approval and lock, an authorized staff member issues a registration QR pass. The pass contains an opaque token; the database stores its hash. At the event, the assigned check-in officer scans or enters the token, physically confirms the athlete against the approved entry, then records attendance. A missing pass uses the reasoned manual fallback. Scanning alone does not prove identity or mark attendance. The house representative submits the roster for review; the submitter cannot approve it.
+
+The house representative downloads the QR image from an approved entry and hands the saved or printed pass to the athlete after checking identity. The application does not email or message passes automatically. Assigned judges can see scheduled events in their workspace; result entry becomes available only when the event is in progress or completed.
 
 Do not print or distribute a pass until its athlete and event details have been independently checked. A QR token is an identifier, not proof of identity.
 
@@ -90,7 +100,7 @@ Do not print or distribute a pass until its athlete and event details have been 
 6. `/public/results` and `/standings` expose intentionally published information only. Standings begin as provisional and require explicit, audited confirmation and final declaration. `/admin/reports` records staff exports, while `/admin/audit` exposes protected audit metadata without payload snapshots.
 7. Assignment and decision notices are available to their recipient at `/notifications`.
 
-See [competition workflow](docs/competition-workflow.md), [scoring policy](docs/scoring-policy.md), and the [operations runbook](docs/operations-runbook.md).
+See [competition workflow](docs/competition-workflow.md), [presentation walkthrough](docs/presentation-runbook.md), [scoring policy](docs/scoring-policy.md), and the [operations runbook](docs/operations-runbook.md).
 
 ## Quality checks
 
@@ -105,6 +115,8 @@ supabase test db
 ```
 
 `npm run check` combines the first three application checks. Playwright installs Chromium with `npm run test:e2e:install`; its authenticated workflow requires the synthetic `E2E_*` values documented in `.env.example` and otherwise skips that one scenario. Database tests are separate because they require a running local Supabase stack.
+
+The production build uses Next.js's supported Webpack option because Turbopack's CSS worker crashes in the current Windows environment. To run the transaction-wrapped database tests against a configured demo project when the local Supabase stack is unavailable, run `node --env-file=.env.local scripts/run-db-suite.mjs`. This command requires a privileged PostgreSQL connection and must never be run against a database containing real student data without an approved test plan.
 
 ## Project structure
 
@@ -140,8 +152,8 @@ Create a new timestamped SQL migration for every schema change. Do not edit a mi
 
 1. Create separate Supabase projects for non-production and production environments.
 2. Run the migration and security test suite in non-production.
-3. Configure only the project URL and publishable key in Vercel's browser-visible environment variables.
+3. Configure the project URL and publishable key as browser-visible variables, and `DATABASE_URL` and `SUPABASE_JWT_SECRET` as server-only Vercel variables. Never expose the latter two to the browser.
 4. Run the CI application checks and database tests.
 5. Deploy to Vercel, then perform a real authentication and authorization smoke test before enabling staff access.
 
-The neutral CSMIS visual identity is a placeholder. Apply official college assets only after brand files and usage guidelines are supplied.
+The checked-in demo account passwords are public test credentials. Rotate or replace **every** demo account and test the replacement credentials before connecting real student records or opening a production staff portal. Review the security and operations runbooks, database backup/restore, authorization tests, and credential rate limiting before production launch. The neutral CSMIS visual identity is a placeholder. Apply official college assets only after brand files and usage guidelines are supplied.

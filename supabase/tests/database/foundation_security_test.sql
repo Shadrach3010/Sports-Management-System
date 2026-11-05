@@ -4,13 +4,14 @@ create extension if not exists pgtap with schema extensions;
 select plan(22);
 
 -- Transactional fixtures only; these are never production seed data.
-insert into auth.users (id, email) values
+insert into public.users (id, email, display_name, password_hash)
+select id::uuid, email, split_part(email, '@', 1), 'test-only' from (values
   ('00000000-0000-0000-0000-000000001000', 'admin@test.invalid'),
   ('00000000-0000-0000-0000-000000002000', 'registration@test.invalid'),
   ('00000000-0000-0000-0000-000000003000', 'judge@test.invalid'),
   ('00000000-0000-0000-0000-000000004000', 'verifier@test.invalid'),
   ('00000000-0000-0000-0000-000000005000', 'coordinator@test.invalid'),
-  ('00000000-0000-0000-0000-000000006000', 'viewer@test.invalid');
+  ('00000000-0000-0000-0000-000000006000', 'viewer@test.invalid')) as fixture(id,email);
 
 insert into public.profiles (id, display_name) values
   ('00000000-0000-0000-0000-000000001000', 'Test administrator'),
@@ -79,7 +80,7 @@ alter table public.sports_meets enable trigger meet_configuration_guard;
 set local role anon;
 select throws_ok(
   $$select * from public.students$$,
-  'unauthenticated users cannot access confidential student records'
+  null, null, 'unauthenticated users cannot access confidential student records'
 );
 select results_eq(
   $$select count(*) from public.results$$,
@@ -90,14 +91,14 @@ select results_eq(
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000006000', true);
 select results_eq(
-  $$select count(*) from public.students$$,
+  $$select count(*) from public.students where student_number='TEST-001'$$,
   array[0::bigint],
   'a public viewer cannot read student identity records'
 );
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000002000', true);
 select results_eq(
-  $$select count(*) from public.students$$,
+  $$select count(*) from public.students where student_number='TEST-001'$$,
   array[1::bigint],
   'a registration officer can read student records'
 );
@@ -105,13 +106,13 @@ select results_eq(
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000006000', true);
 select throws_ok(
   $$insert into public.user_roles(user_id, role, granted_by) values ('00000000-0000-0000-0000-000000006000', 'system_administrator', '00000000-0000-0000-0000-000000006000')$$,
-  'ordinary users cannot grant themselves roles'
+  null, null, 'ordinary users cannot grant themselves roles'
 );
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000002000', true);
 select throws_ok(
   $$update public.event_registrations set status = 'withdrawn' where id = '50000000-0000-0000-0000-000000000001'$$,
-  'locked rosters cannot be changed by registration staff'
+  null, null, 'locked rosters cannot be changed by registration staff'
 );
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000003000', true);
@@ -139,7 +140,7 @@ select results_eq(
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000003000', true);
 select throws_ok(
   $$update public.results set status = 'approved', approved_by = '00000000-0000-0000-0000-000000003000', approved_at = now() where id = '70000000-0000-0000-0000-000000000001'$$,
-  'a judge cannot approve their own submitted result'
+  null, null, 'a judge cannot approve their own submitted result'
 );
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000005000', true);
@@ -164,17 +165,17 @@ select lives_ok(
 );
 select throws_ok(
   $$insert into public.point_awards(result_id, result_revision_id, scoring_rule_id, house_id, points, reason, awarded_by) values ('70000000-0000-0000-0000-000000000001', (select id from public.result_revisions where result_id = '70000000-0000-0000-0000-000000000001' and revision_number = 3), '60000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 1, 'duplicate test', '00000000-0000-0000-0000-000000005000')$$,
-  'direct or duplicate point awards are rejected'
+  null, null, 'direct or duplicate point awards are rejected'
 );
 
 reset role;
 select throws_ok(
   $$update public.audit_logs set action = 'rewritten' where table_name = 'results'$$,
-  'audit history cannot be rewritten even by a database owner'
+  null, null, 'audit history cannot be rewritten even by a database owner'
 );
 select throws_ok(
   $$update public.result_revisions set snapshot = '{}' where result_id = '70000000-0000-0000-0000-000000000001'$$,
-  'result revision history cannot be rewritten'
+  null, null, 'result revision history cannot be rewritten'
 );
 
 set local role anon;

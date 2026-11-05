@@ -4,11 +4,12 @@ create extension if not exists pgtap with schema extensions;
 select plan(19);
 
 -- Transactional fixtures only; these values never become production seed data.
-insert into auth.users (id, email) values
+insert into public.users (id, email, display_name, password_hash)
+select id::uuid, email, split_part(email, '@', 1), 'test-only' from (values
   ('00000000-0000-0000-0000-000000011000', 'm2-admin@test.invalid'),
   ('00000000-0000-0000-0000-000000012000', 'm2-registration@test.invalid'),
   ('00000000-0000-0000-0000-000000013000', 'm2-coordinator@test.invalid'),
-  ('00000000-0000-0000-0000-000000014000', 'm2-viewer@test.invalid');
+  ('00000000-0000-0000-0000-000000014000', 'm2-viewer@test.invalid')) as fixture(id,email);
 
 insert into public.profiles (id, display_name) values
   ('00000000-0000-0000-0000-000000011000', 'Milestone two administrator'),
@@ -40,7 +41,7 @@ select lives_ok(
 );
 select throws_ok(
   $$insert into public.students(student_number, house_id, legal_first_name, legal_last_name) values ('m2-reg-001', '11000000-0000-4000-8000-000000000001', 'Duplicate', 'Identifier')$$,
-  'duplicate student identifiers are rejected case-insensitively'
+  null, null, 'duplicate student identifiers are rejected case-insensitively'
 );
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000014000', true);
@@ -52,7 +53,7 @@ select results_eq(
 );
 select throws_ok(
   $$select public.verify_student_eligibility('41000000-0000-4000-8000-000000000001', 'eligible', 'test verification')$$,
-  'unauthorized users cannot verify eligibility'
+  null, null, 'unauthorized users cannot verify eligibility'
 );
 
 select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-000000013000', true);
@@ -88,7 +89,7 @@ select results_eq(
 );
 select throws_ok(
   $$update public.students set eligibility_status = 'ineligible' where id = '41000000-0000-4000-8000-000000000001'$$,
-  'eligibility cannot be changed by directly updating the student row'
+  null, null, 'eligibility cannot be changed by directly updating the student row'
 );
 
 select lives_ok(
@@ -130,7 +131,7 @@ select results_eq(
 );
 select throws_ok(
   $$update public.student_eligibility_history set reason = 'rewritten' where student_id = '41000000-0000-4000-8000-000000000001'$$,
-  'eligibility audit history cannot be rewritten even by a database owner'
+  null, null, 'eligibility audit history cannot be rewritten even by a database owner'
 );
 
 select * from finish();

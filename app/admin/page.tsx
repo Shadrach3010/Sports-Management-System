@@ -125,16 +125,18 @@ export default async function AdminOverviewPage() {
 
   return (
     <div className="space-y-7">
-      <PageHeader
-        eyebrow="November 2026 sports meet"
-        title="Administration overview"
-        description="Review registration, eligibility, result and integrity readiness. Database policies independently enforce every role boundary shown here."
-      />
+      <div className="dashboard-banner rounded-[2rem] p-6 text-white sm:p-8 [&_.section-kicker]:text-orange-300 [&_h1]:text-white [&_p]:text-slate-200">
+        <PageHeader
+          eyebrow="November 2026 sports meet"
+          title="Administration overview"
+          description="Review registration, eligibility, result and integrity readiness. Database policies independently enforce every role boundary shown here."
+        />
+      </div>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {cards.map(({ label, value, icon: Icon, detail }) => (
           <article
             key={label}
-            className="rounded-xl border bg-surface p-5 shadow-sm"
+            className="glass-card rounded-2xl p-5 transition duration-300 hover:-translate-y-1 hover:border-track-orange/60 hover:shadow-xl"
           >
             <div className="flex items-start justify-between">
               <p className="text-sm font-medium text-muted">{label}</p>
@@ -145,7 +147,7 @@ export default async function AdminOverviewPage() {
           </article>
         ))}
       </div>
-      <section className="rounded-xl border bg-surface p-6 shadow-sm">
+      <section className="glass-card rounded-2xl p-6">
         <h2 className="font-semibold">Current access</h2>
         <p className="mt-2 text-sm text-muted">
           Active roles verified for this request:{" "}

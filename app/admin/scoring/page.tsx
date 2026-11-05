@@ -5,23 +5,28 @@ import { scoringManagerRoles } from "@/lib/auth/roles";
 
 export default async function ScoringPage() {
   const { supabase, userId } = await requireRoles(scoringManagerRoles);
-  const [{ data: meets }, { data: rules }, { data: events }] =
-    await Promise.all([
-      supabase
-        .from("sports_meets")
-        .select("id,name,status,standings_status")
-        .order("starts_on", { ascending: false }),
-      supabase
-        .from("scoring_rules")
-        .select(
-          "id,name,version,status,tie_policy,sports_meet_id,created_by,positions:scoring_rule_positions(placement,points)",
-        )
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("events")
-        .select("id,name,code,sports_meet_id,scoring_rule_id")
-        .order("name"),
-    ]);
+  const [
+    { data: meets, error: meetError },
+    { data: rules, error: ruleError },
+    { data: events, error: eventError },
+  ] = await Promise.all([
+    supabase
+      .from("sports_meets")
+      .select("id,name,status,standings_status")
+      .order("starts_on", { ascending: false }),
+    supabase
+      .from("scoring_rules")
+      .select(
+        "id,name,version,status,tie_policy,sports_meet_id,created_by,positions:scoring_rule_positions(placement,points)",
+      )
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("events")
+      .select("id,name,code,sports_meet_id,scoring_rule_id")
+      .order("name"),
+  ]);
+  if (meetError || ruleError || eventError)
+    throw new Error("Scoring configuration could not be loaded.");
   return (
     <div className="space-y-7">
       <PageHeader

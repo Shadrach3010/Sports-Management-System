@@ -88,17 +88,39 @@ function EventRegistration({
   );
 }
 
-function EventTransition({ meetId, event }: { meetId: string; event: Event }) {
+function EventTransition({
+  meetId,
+  meetStatus,
+  event,
+}: {
+  meetId: string;
+  meetStatus: string;
+  event: Event;
+}) {
   const [state, action] = useActionState(
     transitionEventAction,
     initialActionState,
   );
   const choices: Record<string, string[]> = {
-    scheduled: ["check_in_open", "cancelled"],
-    check_in_open: ["in_progress", "cancelled"],
-    in_progress: ["completed", "cancelled"],
+    scheduled: [
+      ...(event.roster_status === "locked" &&
+      ["registration_closed", "in_progress"].includes(meetStatus)
+        ? ["check_in_open"]
+        : []),
+      "cancelled",
+    ],
+    check_in_open: [
+      ...(meetStatus === "in_progress" ? ["in_progress"] : []),
+      "cancelled",
+    ],
+    in_progress: [
+      ...(meetStatus === "in_progress" ? ["completed"] : []),
+      "cancelled",
+    ],
   };
-  const statuses = choices[event.status] ?? [];
+  const statuses = ["completed", "cancelled", "archived"].includes(meetStatus)
+    ? []
+    : (choices[event.status] ?? []);
   if (!statuses.length) return null;
   return (
     <form action={action} className="mt-3 flex flex-wrap items-end gap-2">
@@ -150,6 +172,9 @@ export function MeetConfiguration({
           <p className="mb-3 text-sm text-muted">
             Participation and event configuration are locked because
             registration has opened.
+            {meetStatus === "registration_open" && events.length === 0
+              ? " Return this eventless meet to draft from Sports meets to finish setup."
+              : ""}
           </p>
         ) : null}
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -188,6 +213,11 @@ export function MeetConfiguration({
             className="grid gap-3 rounded-xl border bg-surface p-5 shadow-sm sm:grid-cols-2"
           >
             <h2 className="font-semibold sm:col-span-2">Create event</h2>
+            {categories.length === 0 ? (
+              <p className="sm:col-span-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+                Add a sport category first; every event needs one.
+              </p>
+            ) : null}
             <input type="hidden" name="meetId" value={meetId} />
             <label className="text-xs font-medium">
               Category
@@ -286,7 +316,11 @@ export function MeetConfiguration({
             </label>
             <div className="sm:col-span-2">
               <ActionMessage state={eventState} />
-              <SubmitButton idleLabel="Create event" pendingLabel="Creating" />
+              <SubmitButton
+                idleLabel="Create event"
+                pendingLabel="Creating"
+                disabled={categories.length === 0}
+              />
             </div>
           </form>
         </section>
@@ -320,14 +354,38 @@ export function MeetConfiguration({
                       {event.registration_status}
                     </StatusBadge>
                     <StatusBadge>{event.roster_status} roster</StatusBadge>
+                    <StatusBadge
+                      tone={
+                        event.status === "check_in_open" ? "success" : "neutral"
+                      }
+                    >
+                      Check-in: {event.status.replaceAll("_", " ")}
+                    </StatusBadge>
                   </div>
                 </div>
+                {event.roster_status === "locked" &&
+                event.status === "scheduled" ? (
+                  <p className="mt-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-900">
+                    {meetStatus === "registration_open"
+                      ? "Close meet registration before opening event check-in."
+                      : "Approved roster locked. Use Lifecycle below to open event check-in before attendance can be recorded."}
+                  </p>
+                ) : null}
                 <p className="mt-3 text-xs text-muted">
                   Limit: {event.maximum_participants_per_house ?? "not set"} per
                   house
                 </p>
-                <EventRegistration meetId={meetId} event={event} />
-                <EventTransition meetId={meetId} event={event} />
+                {event.registration_status === "open" ||
+                (meetStatus === "registration_open" &&
+                  event.roster_status === "open" &&
+                  event.status === "scheduled") ? (
+                  <EventRegistration meetId={meetId} event={event} />
+                ) : null}
+                <EventTransition
+                  meetId={meetId}
+                  meetStatus={meetStatus}
+                  event={event}
+                />
               </article>
             ))}
           </div>

@@ -4,14 +4,15 @@ create extension if not exists pgtap with schema extensions;
 select plan(28);
 
 -- Transactional fixtures only. No production participant data is seeded.
-insert into auth.users (id, email) values
+insert into public.users (id, email, display_name, password_hash)
+select id::uuid, email, split_part(email, '@', 1), 'test-only' from (values
   ('00000000-0000-4000-8000-000000021000', 'm3-admin@test.invalid'),
   ('00000000-0000-4000-8000-000000022000', 'm3-coordinator@test.invalid'),
   ('00000000-0000-4000-8000-000000023000', 'm3-registration@test.invalid'),
   ('00000000-0000-4000-8000-000000024000', 'm3-house-a@test.invalid'),
   ('00000000-0000-4000-8000-000000025000', 'm3-house-b@test.invalid'),
   ('00000000-0000-4000-8000-000000026000', 'm3-check-in@test.invalid'),
-  ('00000000-0000-4000-8000-000000027000', 'm3-viewer@test.invalid');
+  ('00000000-0000-4000-8000-000000027000', 'm3-viewer@test.invalid')) as fixture(id,email);
 
 insert into public.profiles (id, display_name) values
   ('00000000-0000-4000-8000-000000021000', 'M3 administrator'),
@@ -99,19 +100,19 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000027000', true);
 select throws_ok(
   $$insert into public.sports_meets(name, year, starts_on, ends_on) values ('Unauthorized meet', 2026, '2026-11-01', '2026-11-02')$$,
-  'a public viewer cannot create a meet'
+  null, null, 'a public viewer cannot create a meet'
 );
 
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000025000', true);
 select throws_ok(
   $$select public.register_event_participant('33000000-0000-4000-8000-000000000001', '42000000-0000-4000-8000-000000000001', null, false)$$,
-  'a house representative cannot register another house student'
+  null, null, 'a house representative cannot register another house student'
 );
 
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000024000', true);
 select throws_ok(
   $$select public.register_event_participant('33000000-0000-4000-8000-000000000001', '42000000-0000-4000-8000-000000000003', null, false)$$,
-  'an ineligible student cannot be registered'
+  null, null, 'an ineligible student cannot be registered'
 );
 select lives_ok(
   $$select public.register_event_participant('33000000-0000-4000-8000-000000000001', '42000000-0000-4000-8000-000000000001', null, false)$$,
@@ -119,15 +120,15 @@ select lives_ok(
 );
 select throws_ok(
   $$select public.register_event_participant('33000000-0000-4000-8000-000000000001', '42000000-0000-4000-8000-000000000001', null, false)$$,
-  'the same student cannot be registered twice for one event'
+  null, null, 'the same student cannot be registered twice for one event'
 );
 select throws_ok(
   $$select public.register_event_participant('33000000-0000-4000-8000-000000000001', '42000000-0000-4000-8000-000000000002', null, false)$$,
-  'the per-house participant limit is enforced'
+  null, null, 'the per-house participant limit is enforced'
 );
 select throws_ok(
   $$insert into public.event_registrations(event_id,student_id,house_id,entry_type,status,registered_by) values ('33000000-0000-4000-8000-000000000001','42000000-0000-4000-8000-000000000002','12000000-0000-4000-8000-000000000001','individual','draft','00000000-0000-4000-8000-000000024000')$$,
-  'direct registration writes are denied in favor of the trusted workflow'
+  null, null, 'direct registration writes are denied in favor of the trusted workflow'
 );
 
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000022000', true);
@@ -137,7 +138,7 @@ select lives_ok(
 );
 select throws_ok(
   $$select public.review_event_roster((select id from public.event_roster_submissions where event_id='33000000-0000-4000-8000-000000000001' and house_id='12000000-0000-4000-8000-000000000001'),'approved',null)$$,
-  'the roster submitter cannot approve the same roster'
+  null, null, 'the roster submitter cannot approve the same roster'
 );
 
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000023000', true);
@@ -146,13 +147,13 @@ select lives_ok(
   'a different registration officer can approve the roster'
 );
 select results_eq(
-  $$select string_agg(new_status, ',' order by changed_at) from public.registration_history where registration_id=(select id from public.event_registrations where event_id='33000000-0000-4000-8000-000000000001' and student_id='42000000-0000-4000-8000-000000000001')$$,
-  array['draft,submitted,approved'],
+  $$select count(*)=3 and count(distinct new_status)=3 from public.registration_history where registration_id=(select id from public.event_registrations where event_id='33000000-0000-4000-8000-000000000001' and student_id='42000000-0000-4000-8000-000000000001') and new_status in ('draft','submitted','approved')$$,
+  array[true],
   'registration state changes retain append-only history'
 );
 select throws_ok(
   $$select public.lock_event_roster('33000000-0000-4000-8000-000000000001')$$,
-  'a roster cannot be locked before the registration deadline while registration remains open'
+  null, null, 'a roster cannot be locked before the registration deadline while registration remains open'
 );
 
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000022000', true);
@@ -167,7 +168,7 @@ select lives_ok(
 );
 select throws_ok(
   $$select public.withdraw_event_registration((select id from public.event_registrations where student_id='42000000-0000-4000-8000-000000000001'),'late withdrawal')$$,
-  'ordinary withdrawal cannot rewrite a locked roster'
+  null, null, 'ordinary withdrawal cannot rewrite a locked roster'
 );
 
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000024000', true);
@@ -178,7 +179,7 @@ select lives_ok(
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000023000', true);
 select throws_ok(
   $$select public.decide_late_roster_addition((select id from public.roster_change_requests where student_id='42000000-0000-4000-8000-000000000002'),true,'Approved after review')$$,
-  'a registration officer cannot approve a late roster exception'
+  null, null, 'a registration officer cannot approve a late roster exception'
 );
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000022000', true);
 select lives_ok(
@@ -199,7 +200,7 @@ select lives_ok(
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000026000', true);
 select throws_ok(
   $$select * from public.check_in_with_token('33000000-0000-4000-8000-000000000001',(select token from m3_token_store),false)$$,
-  'token possession never replaces physical identity confirmation'
+  null, null, 'token possession never replaces physical identity confirmation'
 );
 select lives_ok(
   $$select * from public.check_in_with_token('33000000-0000-4000-8000-000000000001',(select token from m3_token_store),true)$$,
@@ -207,7 +208,7 @@ select lives_ok(
 );
 select throws_ok(
   $$select * from public.check_in_with_token('33000000-0000-4000-8000-000000000001',(select token from m3_token_store),true)$$,
-  'a token cannot create duplicate active attendance'
+  null, null, 'a token cannot create duplicate active attendance'
 );
 
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000025000', true);

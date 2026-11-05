@@ -63,6 +63,17 @@ function PassIssuer({ registrationId }: { registrationId: string }) {
             height={256}
             unoptimized
           />
+          <a
+            className="mt-3 inline-flex min-h-10 items-center rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white"
+            href={state.data.dataUrl}
+            download={`csmis-pass-${registrationId}.png`}
+          >
+            Download QR pass
+          </a>
+          <p className="mt-2 text-xs text-muted">
+            Hand the saved or printed pass to the athlete after confirming their
+            identity. The system does not automatically send passes.
+          </p>
           <p className="mt-2 break-all font-mono text-[10px] text-muted">
             Manual token: {state.data.token}
           </p>
@@ -102,6 +113,8 @@ export function RegistrationWorkspace({
   houseId,
   eventType,
   rosterLocked,
+  registrationOpen,
+  availability,
   students,
   teams,
   registrations,
@@ -110,6 +123,13 @@ export function RegistrationWorkspace({
   houseId: string;
   eventType: string;
   rosterLocked: boolean;
+  registrationOpen: boolean;
+  availability:
+    | "open"
+    | "roster_locked"
+    | "event_closed"
+    | "meet_closed"
+    | "outside_window";
   students: Student[];
   teams: Team[];
   registrations: Registration[];
@@ -164,8 +184,20 @@ export function RegistrationWorkspace({
   );
   return (
     <div className="space-y-7">
+      {!registrationOpen && !rosterLocked ? (
+        <p
+          className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950"
+          role="status"
+        >
+          {availability === "event_closed"
+            ? "This event is closed. A meet manager must open its registration before athletes can be added."
+            : availability === "meet_closed"
+              ? "The meet is closed. A meet manager must open registration for the meet."
+              : "Registration is outside the meet's configured time window. A meet manager must review the dates."}
+        </p>
+      ) : null}
       <section className="grid gap-5 lg:grid-cols-2">
-        {!rosterLocked ? (
+        {!rosterLocked && registrationOpen ? (
           <form
             action={registerAction}
             className="space-y-3 rounded-xl border bg-surface p-5 shadow-sm"
@@ -175,7 +207,7 @@ export function RegistrationWorkspace({
             <ActionMessage state={registerState} />
             <SubmitButton idleLabel="Add athlete" pendingLabel="Adding" />
           </form>
-        ) : (
+        ) : rosterLocked ? (
           <form
             action={lateAction}
             className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-5"
@@ -192,8 +224,8 @@ export function RegistrationWorkspace({
               pendingLabel="Submitting"
             />
           </form>
-        )}
-        {eventType === "team" && !rosterLocked ? (
+        ) : null}
+        {eventType === "team" && !rosterLocked && registrationOpen ? (
           <form
             action={teamAction}
             className="space-y-3 rounded-xl border bg-surface p-5 shadow-sm"
@@ -212,7 +244,11 @@ export function RegistrationWorkspace({
       <section>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-lg font-semibold">House roster</h2>
-          {!rosterLocked ? (
+          {!rosterLocked &&
+          registrationOpen &&
+          registrations.some(
+            (item) => item.status === "draft" || item.status === "submitted",
+          ) ? (
             <form action={submitAction}>
               <input type="hidden" name="eventId" value={eventId} />
               <input type="hidden" name="houseId" value={houseId} />
@@ -222,8 +258,12 @@ export function RegistrationWorkspace({
               />
               <ActionMessage state={submitState} />
             </form>
-          ) : (
+          ) : rosterLocked ? (
             <StatusBadge tone="warning">Roster locked</StatusBadge>
+          ) : !registrationOpen ? (
+            <StatusBadge tone="neutral">Registration closed</StatusBadge>
+          ) : (
+            <StatusBadge tone="info">Awaiting athletes</StatusBadge>
           )}
         </div>
         {registrations.length ? (

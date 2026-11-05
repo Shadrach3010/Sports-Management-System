@@ -15,7 +15,6 @@ export default async function ResultEntryPage({
   const { data: events } = await supabase
     .from("events")
     .select("id,name,code,status,event_type")
-    .in("status", ["in_progress", "completed"])
     .order("name");
   const event =
     (events ?? []).find((item) => item.id === selectedEvent) ?? null;
@@ -81,7 +80,13 @@ export default async function ResultEntryPage({
         ))}
       </nav>
       {event ? (
-        entrants.length ? (
+        !["in_progress", "completed"].includes(event.status) ? (
+          <p className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            {event.name} is assigned to you. Result entry opens when a meet
+            manager moves the event from {event.status.replaceAll("_", " ")} to
+            in progress.
+          </p>
+        ) : entrants.length ? (
           <ResultEntryForm eventId={event.id} entrants={entrants} />
         ) : (
           <p className="rounded-lg border bg-surface p-4 text-sm text-muted">
@@ -90,7 +95,9 @@ export default async function ResultEntryPage({
         )
       ) : (
         <p className="rounded-lg border bg-surface p-4 text-sm text-muted">
-          Select an assigned event that is in progress or completed.
+          {events?.length
+            ? "Select an assigned event above."
+            : "No events are assigned to your judge role yet."}
         </p>
       )}
     </div>

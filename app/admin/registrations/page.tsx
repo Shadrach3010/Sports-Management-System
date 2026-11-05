@@ -21,7 +21,7 @@ export default async function RegistrationReviewPage() {
     supabase
       .from("event_roster_submissions")
       .select(
-        "id,status,submitted_at,rejection_reason,event:events(name,code),house:houses(name,code)",
+        "id,event_id,house_id,status,submitted_at,rejection_reason,event:events(name,code),house:houses(name,code)",
       )
       .order("submitted_at", { ascending: false }),
     supabase
@@ -48,6 +48,20 @@ export default async function RegistrationReviewPage() {
       .is("voided_at", null)
       .order("checked_in_at", { ascending: false }),
   ]);
+  const eventIds = [
+    ...new Set((submissions ?? []).map((item) => item.event_id)),
+  ];
+  const { data: rosterEntries, error: rosterError } = eventIds.length
+    ? await supabase
+        .from("event_registrations")
+        .select(
+          "id,event_id,house_id,status,student:students(student_number,legal_first_name,legal_last_name),team:event_teams(name)",
+        )
+        .in("event_id", eventIds)
+        .order("created_at")
+    : { data: [], error: null };
+  if (rosterError)
+    throw new Error("Submitted roster athletes could not be loaded.");
   const roles = new Map<string, string[]>();
   (roleRows ?? []).forEach((row) =>
     roles.set(row.user_id, [...(roles.get(row.user_id) ?? []), row.role]),
@@ -64,6 +78,7 @@ export default async function RegistrationReviewPage() {
       />
       <RosterReview
         submissions={(submissions ?? []) as never}
+        rosterEntries={(rosterEntries ?? []) as never}
         lateRequests={(lateRequests ?? []) as never}
         events={events ?? []}
         officials={officials}
@@ -74,3 +89,4 @@ export default async function RegistrationReviewPage() {
     </div>
   );
 }
+export const instant = false;

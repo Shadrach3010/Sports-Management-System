@@ -38,7 +38,7 @@ export async function signInAction(
       status: "error",
       message: "Sign-in failed. Check the credentials and account status.",
     };
-  redirect("/workspace");
+  redirect("/dashboard");
 }
 
 export async function signOutAction() {

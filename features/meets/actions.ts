@@ -22,6 +22,16 @@ function databaseMessage(
 ) {
   if (error?.code === "23505")
     return "A record with that name or code already exists.";
+  if (error?.message?.includes("create at least one event"))
+    return "Create at least one event before opening registration.";
+  if (error?.message?.includes("only an eventless, unscored meet"))
+    return "This meet already has event or scoring data and cannot return to draft.";
+  if (error?.message?.includes("complete or cancel every event"))
+    return "Complete or cancel every event before completing the meet.";
+  if (error?.message?.includes("meet registration must be closed"))
+    return "Close meet registration before opening event check-in.";
+  if (error?.message?.includes("meet must be in progress"))
+    return "Move the meet to in progress before advancing this event.";
   if (error?.message?.includes("transition"))
     return "That status transition is not permitted.";
   if (error?.message?.includes("complete"))
@@ -130,7 +140,9 @@ export async function transitionMeetAction(
         published_at:
           parsed.data.status === "registration_open"
             ? new Date().toISOString()
-            : undefined,
+            : parsed.data.status === "draft"
+              ? null
+              : undefined,
       })
       .eq("id", parsed.data.id)
       .select("id")

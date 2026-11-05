@@ -1,11 +1,21 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 import { PageHeader } from "@/components/admin/page-header";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { requireRoles } from "@/lib/auth/authorization";
+import { registrationWorkspaceRoles } from "@/lib/auth/roles";
+import { databaseNow } from "@/lib/auth/session";
+import {
+  relatedMeet,
+  registrationAvailability,
+} from "@/features/registrations/availability";
 
 export default async function RegistrationPage() {
-  const { supabase, userId } = await requireRoles(["house_representative"]);
+  const { supabase, userId, roles } = await requireRoles(
+    registrationWorkspaceRoles,
+  );
+  if (!roles.includes("house_representative")) redirect("/admin/registrations");
   const { data: assignment } = await supabase
     .from("user_roles")
     .select("house_id,houses(name,code)")
@@ -24,12 +34,13 @@ export default async function RegistrationPage() {
     ? await supabase
         .from("events")
         .select(
-          "id,name,code,event_type,format_code,registration_status,roster_status,starts_at,sports_meets(name,status)",
+          "id,name,code,event_type,format_code,registration_status,roster_status,starts_at,sports_meets(name,status,registration_opens_at,registration_closes_at)",
         )
         .in("sports_meet_id", meetIds)
         .order("starts_at")
     : { data: [], error: null };
   if (error) throw new Error("Registration events could not be loaded.");
+  const now = await databaseNow();
   return (
     <div className="space-y-7">
       <PageHeader
@@ -39,38 +50,57 @@ export default async function RegistrationPage() {
       />
       {data?.length ? (
         <div className="grid gap-4 md:grid-cols-2">
-          {data.map((event) => (
-            <article
-              className="rounded-xl border bg-surface p-5 shadow-sm"
-              key={event.id}
-            >
-              <div className="flex justify-between gap-3">
-                <div>
-                  <p className="font-mono text-xs text-muted">{event.code}</p>
-                  <h2 className="font-semibold">{event.name}</h2>
-                  <p className="mt-1 text-sm capitalize text-muted">
-                    {event.format_code?.replaceAll("_", " ")} ·{" "}
-                    {event.event_type}
-                  </p>
-                </div>
-                <StatusBadge
-                  tone={
-                    event.registration_status === "open" ? "success" : "neutral"
-                  }
-                >
-                  {event.roster_status === "locked"
-                    ? "locked"
-                    : event.registration_status}
-                </StatusBadge>
-              </div>
-              <Link
-                className="mt-4 inline-block text-sm font-semibold text-primary underline"
-                href={`/registration/${event.id}`}
+          {data.map((event) => {
+            const availability = registrationAvailability(
+              event.registration_status,
+              event.roster_status,
+              relatedMeet(event.sports_meets),
+              now,
+            );
+            const open = availability === "open";
+            return (
+              <article
+                className="rounded-xl border bg-surface p-5 shadow-sm"
+                key={event.id}
               >
-                Manage roster
-              </Link>
-            </article>
-          ))}
+                <div className="flex justify-between gap-3">
+                  <div>
+                    <p className="font-mono text-xs text-muted">{event.code}</p>
+                    <h2 className="font-semibold">{event.name}</h2>
+                    <p className="mt-1 text-sm capitalize text-muted">
+                      {event.format_code?.replaceAll("_", " ")} ·{" "}
+                      {event.event_type}
+                    </p>
+                  </div>
+                  <StatusBadge
+                    tone={
+                      event.roster_status === "locked"
+                        ? "warning"
+                        : open
+                          ? "success"
+                          : "neutral"
+                    }
+                  >
+                    {availability === "roster_locked"
+                      ? "Roster locked"
+                      : open
+                        ? "Registration open"
+                        : availability === "event_closed"
+                          ? "Event closed"
+                          : availability === "meet_closed"
+                            ? "Meet closed"
+                            : "Outside window"}
+                  </StatusBadge>
+                </div>
+                <Link
+                  className="mt-5 inline-flex min-h-10 items-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white transition hover:-translate-y-0.5 hover:bg-primary/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                  href={`/registration/${event.id}`}
+                >
+                  {open ? "Manage roster" : "View roster"}
+                </Link>
+              </article>
+            );
+          })}
         </div>
       ) : (
         <p className="rounded-xl border bg-surface p-5 text-sm text-muted">

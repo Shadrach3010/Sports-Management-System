@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { ActionMessage } from "@/components/ui/action-message";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { SubmitButton } from "@/components/ui/submit-button";
@@ -54,7 +54,7 @@ function RuleCard({ rule, currentUser }: { rule: Rule; currentUser: string }) {
     initialActionState,
   );
   return (
-    <article className="rounded-xl border bg-surface p-5 shadow-sm">
+    <article className="glass-card rounded-2xl p-5 transition duration-300 hover:-translate-y-0.5 hover:shadow-lg">
       <div className="flex justify-between gap-3">
         <div>
           <h3 className="font-semibold">
@@ -155,22 +155,27 @@ export function ScoringManager({
     initialActionState,
   );
   const activeRules = rules.filter((rule) => rule.status === "active");
+  const [selectedEventId, setSelectedEventId] = useState(events[0]?.id ?? "");
+  const selectedEvent = events.find((event) => event.id === selectedEventId);
+  const eligibleRules = activeRules.filter(
+    (rule) => rule.sports_meet_id === selectedEvent?.sports_meet_id,
+  );
   return (
     <div className="space-y-8">
       <section>
         <h2 className="mb-3 text-lg font-semibold">Scoring versions</h2>
         <p className="mb-4 text-sm text-muted">
-          No values are supplied by the application. Enter only the
-          college-approved position table; a second authorized manager must
-          activate it.
+          Configure placement points in a versioned policy, submit it for
+          independent approval, then assign the approved version to an event. No
+          point values are supplied by the application.
         </p>
         <form
           action={createAction}
-          className="grid gap-3 rounded-xl border bg-surface p-5 shadow-sm md:grid-cols-4"
+          className="glass-card grid gap-3 rounded-2xl p-5 md:grid-cols-4"
         >
           <label className="text-xs font-medium">
             Meet
-            <select className={inputClass} name="meetId">
+            <select className={inputClass} name="meetId" required>
               {meets.map((meet) => (
                 <option key={meet.id} value={meet.id}>
                   {meet.name}
@@ -221,11 +226,17 @@ export function ScoringManager({
         </h2>
         <form
           action={assignAction}
-          className="grid gap-3 rounded-xl border bg-surface p-5 shadow-sm md:grid-cols-3"
+          className="glass-card grid gap-3 rounded-2xl p-5 md:grid-cols-3"
         >
           <label className="text-xs font-medium">
             Event
-            <select className={inputClass} name="eventId">
+            <select
+              className={inputClass}
+              name="eventId"
+              value={selectedEventId}
+              onChange={(event) => setSelectedEventId(event.target.value)}
+              required
+            >
               {events.map((event) => (
                 <option key={event.id} value={event.id}>
                   {event.code} · {event.name}
@@ -235,8 +246,13 @@ export function ScoringManager({
           </label>
           <label className="text-xs font-medium">
             Active scoring version
-            <select className={inputClass} name="ruleId">
-              {activeRules.map((rule) => (
+            <select
+              className={inputClass}
+              name="ruleId"
+              key={selectedEventId}
+              required
+            >
+              {eligibleRules.map((rule) => (
                 <option key={rule.id} value={rule.id}>
                   {rule.name} v{rule.version}
                 </option>
@@ -248,7 +264,17 @@ export function ScoringManager({
             <input className={inputClass} name="reason" required />
           </label>
           <div className="md:col-span-3">
-            <SubmitButton idleLabel="Assign rule" pendingLabel="Assigning" />
+            {eligibleRules.length ? (
+              <SubmitButton
+                idleLabel="Assign approved points"
+                pendingLabel="Assigning"
+              />
+            ) : (
+              <p className="text-sm text-muted">
+                Activate a scoring version for this event’s meet before
+                assigning points.
+              </p>
+            )}
             <ActionMessage state={assignState} />
           </div>
         </form>
@@ -262,7 +288,7 @@ export function ScoringManager({
         </p>
         <form
           action={declarationAction}
-          className="grid gap-3 rounded-xl border bg-surface p-5 shadow-sm md:grid-cols-3"
+          className="glass-card grid gap-3 rounded-2xl p-5 md:grid-cols-3"
         >
           <label className="text-xs font-medium">
             Meet

@@ -16,7 +16,7 @@ export default async function EventCheckInPage({
   const [{ data: event }, { data: registrations, error }] = await Promise.all([
     supabase
       .from("events")
-      .select("id,name,code")
+      .select("id,name,code,status")
       .eq("id", eventId)
       .maybeSingle(),
     supabase
@@ -39,6 +39,7 @@ export default async function EventCheckInPage({
       />
       <CheckInPanel
         eventId={eventId}
+        eventStatus={event.status}
         registrations={(registrations ?? []) as never}
       />
     </div>

@@ -31,17 +31,34 @@ export function StaffProvisioningForm({
         <p className="section-kicker">Controlled provisioning</p>
         <h2 className="mt-1 text-xl font-black">Add staff access</h2>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
-          Create the identity in Supabase Auth first. This form adds only the
-          application profile and an explicit role; it never handles passwords.
+          Create a staff account and its scoped role in one step. Share the
+          initial password through a private channel.
         </p>
       </div>
       <label className="text-xs font-bold uppercase tracking-wider text-muted">
-        Supabase Auth user UUID
-        <input className={inputClass} name="userId" required />
+        Staff email
+        <input
+          className={inputClass}
+          name="email"
+          type="email"
+          autoComplete="off"
+          required
+        />
       </label>
       <label className="text-xs font-bold uppercase tracking-wider text-muted">
         Display name
         <input className={inputClass} name="displayName" required />
+      </label>
+      <label className="text-xs font-bold uppercase tracking-wider text-muted">
+        Initial password
+        <input
+          className={inputClass}
+          name="password"
+          type="password"
+          minLength={12}
+          autoComplete="new-password"
+          required
+        />
       </label>
       <label className="text-xs font-bold uppercase tracking-wider text-muted">
         Role

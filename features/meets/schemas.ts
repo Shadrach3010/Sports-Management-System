@@ -40,6 +40,7 @@ export const meetInputSchema = z
 export const meetStatusSchema = z.object({
   id: z.uuid(),
   status: z.enum([
+    "draft",
     "registration_open",
     "registration_closed",
     "in_progress",

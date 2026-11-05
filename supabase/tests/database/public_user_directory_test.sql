@@ -14,6 +14,10 @@ select results_eq(
   $$select has_table_privilege('authenticated','public.users','UPDATE')$$,
   array[false], 'authenticated users cannot edit directory records directly'
 );
+create temp table user_audit_before as
+select count(*) as total from public.audit_logs
+where table_name='users' and action='update'
+  and record_id='d5000000-0000-4000-8000-000000000009';
 update public.profiles set display_name='Updated Demo Viewer'
 where id='d5000000-0000-4000-8000-000000000009';
 select results_eq(
@@ -21,7 +25,7 @@ select results_eq(
   array['Updated Demo Viewer'], 'profile changes synchronize to the directory'
 );
 select results_eq(
-  $$select count(*)::integer from public.audit_logs where table_name='users' and action='update' and record_id='d5000000-0000-4000-8000-000000000009'$$,
+  $$select (count(*)-(select total from user_audit_before))::integer from public.audit_logs where table_name='users' and action='update' and record_id='d5000000-0000-4000-8000-000000000009'$$,
   array[1], 'directory change is audited'
 );
 

@@ -7,15 +7,15 @@ select results_eq(
   array[9], 'all nine demo roles are present'
 );
 select results_eq(
-  $$select count(*)::integer from auth.users where id::text like 'd5000000-0000-4000-8000-00000000000%' and encrypted_password is not null and email_confirmed_at is not null$$,
-  array[9], 'all demo users have a password hash and confirmed email'
+  $$select count(*)::integer from public.users where id::text like 'd5000000-0000-4000-8000-00000000000%' and password_hash is not null and is_active$$,
+  array[9], 'all demo users have an active custom-login account'
 );
 select results_eq(
-  $$select count(*)::integer from auth.identities where user_id::text like 'd5000000-0000-4000-8000-00000000000%' and provider='email'$$,
-  array[9], 'all demo users have an email identity'
+  $$select count(*)::integer from public.profiles where id::text like 'd5000000-0000-4000-8000-00000000000%' and is_active$$,
+  array[9], 'all demo users have an active staff profile'
 );
 select results_eq(
-  $$select extensions.crypt('admin123',encrypted_password)=encrypted_password from auth.users where id='d5000000-0000-4000-8000-000000000001'$$,
+  $$select extensions.crypt('admin123',password_hash)=password_hash from public.users where id='d5000000-0000-4000-8000-000000000001'$$,
   array[true], 'the documented mock administrator password matches its stored hash'
 );
 select results_eq(
@@ -23,9 +23,8 @@ select results_eq(
   array[2], 'judge and check-in officer have event assignments'
 );
 select results_eq(
-  $$select count(*)::integer from public.students where house_id in
-    ('d1000000-0000-4000-8000-000000000001','d1000000-0000-4000-8000-000000000002','d1000000-0000-4000-8000-000000000003')$$,
-  array[0], 'demo fixture adds no student records'
+  $$select count(*)::integer from public.events where sports_meet_id='d2000000-0000-4000-8000-000000000001'$$,
+  array[2], 'demo meet has one individual and one team event'
 );
 
 select * from finish();

@@ -43,11 +43,18 @@ export async function registerParticipantAction(
         status: "error",
         message: error.message.includes("eligible")
           ? "Only enrolled, verified-eligible students can be registered."
-          : error.message.includes("limit")
-            ? "The participant limit has been reached."
-            : error.message.includes("duplicate") || error.code === "23505"
-              ? "This student is already entered in the event."
-              : "The participant could not be added.",
+          : error.message.includes("registration is not open")
+            ? "Registration is closed. A meet manager must open the meet and event."
+            : error.message.includes("participating")
+              ? "This student's house is not participating in the meet."
+              : error.message.includes("team")
+                ? "Choose a draft team from this event and house."
+                : error.message.includes("limit")
+                  ? "The participant limit has been reached."
+                  : error.message.includes("duplicate") ||
+                      error.code === "23505"
+                    ? "This student is already entered in the event."
+                    : "The participant could not be added.",
       };
     revalidatePath(`/registration/${parsed.data.eventId}`);
     return { status: "success", message: "Athlete added to the draft roster." };
@@ -75,7 +82,12 @@ export async function createTeamAction(
       p_name: parsed.data.name,
     });
     if (error)
-      return { status: "error", message: "The team could not be created." };
+      return {
+        status: "error",
+        message: error.message.includes("open registration")
+          ? "Registration is closed for this meet or event."
+          : "The team could not be created.",
+      };
     revalidatePath(`/registration/${parsed.data.eventId}`);
     return { status: "success", message: "Team created." };
   } catch (error) {
@@ -103,7 +115,11 @@ export async function submitRosterAction(
         status: "error",
         message: error.message.includes("size")
           ? "A team is outside the permitted roster size."
-          : "The roster could not be submitted.",
+          : error.message.includes("no participants")
+            ? "Add at least one eligible athlete before submitting the roster."
+            : error.message.includes("locked")
+              ? "The event roster is locked."
+              : "The roster could not be submitted.",
       };
     revalidatePath(`/registration/${parsed.data.eventId}`);
     revalidatePath("/admin/registrations");

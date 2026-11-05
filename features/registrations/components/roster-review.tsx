@@ -16,11 +16,25 @@ import { initialActionState } from "@/features/shared/action-state";
 
 type Submission = {
   id: string;
+  event_id: string;
+  house_id: string;
   status: string;
   submitted_at: string | null;
   rejection_reason: string | null;
   event: { name: string; code: string } | null;
   house: { name: string; code: string } | null;
+};
+type RosterEntry = {
+  id: string;
+  event_id: string;
+  house_id: string;
+  status: string;
+  student: {
+    student_number: string;
+    legal_first_name: string;
+    legal_last_name: string;
+  } | null;
+  team: { name: string } | null;
 };
 type LateRequest = {
   id: string;
@@ -149,6 +163,7 @@ function AttendanceCorrection({ attendance }: { attendance: Attendance }) {
 
 export function RosterReview({
   submissions,
+  rosterEntries,
   lateRequests,
   events,
   officials,
@@ -157,6 +172,7 @@ export function RosterReview({
   canCorrectAttendance,
 }: {
   submissions: Submission[];
+  rosterEntries: RosterEntry[];
   lateRequests: LateRequest[];
   events: Event[];
   officials: Official[];
@@ -197,6 +213,58 @@ export function RosterReview({
                   >
                     {submission.status}
                   </StatusBadge>
+                </div>
+                <div className="mt-4 rounded-lg border bg-surface-muted p-3">
+                  <p className="text-xs font-bold uppercase tracking-wide text-muted">
+                    Athletes in this house roster
+                  </p>
+                  {rosterEntries.filter(
+                    (entry) =>
+                      entry.event_id === submission.event_id &&
+                      entry.house_id === submission.house_id &&
+                      entry.status !== "withdrawn",
+                  ).length ? (
+                    <ul className="mt-2 divide-y text-sm">
+                      {rosterEntries
+                        .filter(
+                          (entry) =>
+                            entry.event_id === submission.event_id &&
+                            entry.house_id === submission.house_id &&
+                            entry.status !== "withdrawn",
+                        )
+                        .map((entry) => (
+                          <li
+                            key={entry.id}
+                            className="flex flex-wrap items-center justify-between gap-2 py-2"
+                          >
+                            <span>
+                              {entry.student?.legal_first_name}{" "}
+                              {entry.student?.legal_last_name}{" "}
+                              <span className="font-mono text-xs text-muted">
+                                {entry.student?.student_number}
+                              </span>
+                              {entry.team ? ` · ${entry.team.name}` : ""}
+                            </span>
+                            <StatusBadge
+                              tone={
+                                entry.status === "approved" ||
+                                entry.status === "checked_in"
+                                  ? "success"
+                                  : entry.status === "rejected"
+                                    ? "danger"
+                                    : "neutral"
+                              }
+                            >
+                              {entry.status.replaceAll("_", " ")}
+                            </StatusBadge>
+                          </li>
+                        ))}
+                    </ul>
+                  ) : (
+                    <p className="mt-2 text-sm text-muted">
+                      No active athletes in this submission.
+                    </p>
+                  )}
                 </div>
                 {submission.status === "submitted" ? (
                   <ReviewForm id={submission.id} />

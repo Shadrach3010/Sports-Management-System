@@ -2,6 +2,7 @@ import { PageHeader } from "@/components/admin/page-header";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { requireRoles } from "@/lib/auth/authorization";
 import { StaffProvisioningForm } from "@/features/users/components/staff-provisioning-form";
+import { StaffAccountControls } from "@/features/users/components/staff-account-controls";
 
 export default async function UsersPage() {
   const { supabase } = await requireRoles(["system_administrator"]);
@@ -13,7 +14,8 @@ export default async function UsersPage() {
   ] = await Promise.all([
     supabase
       .from("users")
-      .select("id,email,display_name,is_active,created_at")
+      .select("id,email,display_name,is_active,created_at,deleted_at")
+      .is("deleted_at", null)
       .order("display_name"),
     supabase
       .from("user_roles")
@@ -59,7 +61,17 @@ export default async function UsersPage() {
                     <p className="text-xs text-muted">
                       {user.email ?? "No email"}
                     </p>
-                    <p className="font-mono text-xs text-muted">{user.id}</p>
+                    <StaffAccountControls
+                      account={{
+                        id: user.id,
+                        email: user.email ?? "",
+                        display_name: user.display_name,
+                        is_active: user.is_active,
+                      }}
+                      assignment={byUser.get(user.id)?.[0] ?? null}
+                      houses={houses ?? []}
+                      events={events ?? []}
+                    />
                   </td>
                   <td className="px-4 py-3">
                     <StatusBadge tone={user.is_active ? "success" : "neutral"}>

@@ -21,6 +21,7 @@ export type MeetSummary = {
   registration_opens_at: string | null;
   registration_closes_at: string | null;
   status: string;
+  eventCount: number;
 };
 const inputClass =
   "mt-1 min-h-10 w-full rounded-md border bg-white px-3 py-2 text-sm";
@@ -32,16 +33,31 @@ function MeetStatusForm({ meet }: { meet: MeetSummary }) {
   );
   const transitions: Record<string, string[]> = {
     draft: ["registration_open", "cancelled"],
-    registration_open: ["registration_closed", "cancelled"],
+    registration_open:
+      meet.eventCount === 0 ? ["draft"] : ["registration_closed", "cancelled"],
     registration_closed: ["in_progress", "cancelled"],
     in_progress: ["completed", "cancelled"],
     completed: ["archived"],
   };
-  const choices = transitions[meet.status] ?? [];
-  if (!choices.length) return null;
+  const choices =
+    meet.status === "draft" && meet.eventCount === 0
+      ? []
+      : (transitions[meet.status] ?? []);
+  if (!choices.length)
+    return meet.status === "draft" ? (
+      <p className="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+        Create an event before opening registration.
+      </p>
+    ) : null;
   return (
     <form action={action} className="mt-4 flex flex-wrap items-end gap-2">
       <input type="hidden" name="id" value={meet.id} />
+      {meet.status === "registration_open" && meet.eventCount === 0 ? (
+        <p className="w-full rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          This meet opened with no events. Return it to draft, then create at
+          least one event before opening registration again.
+        </p>
+      ) : null}
       <label className="text-xs font-medium">
         Next status
         <select className={inputClass} name="status">
@@ -52,7 +68,10 @@ function MeetStatusForm({ meet }: { meet: MeetSummary }) {
           ))}
         </select>
       </label>
-      <SubmitButton idleLabel="Apply" pendingLabel="Updating" />
+      <SubmitButton
+        idleLabel={choices[0] === "draft" ? "Return to draft" : "Apply"}
+        pendingLabel="Updating"
+      />
       <ActionMessage state={state} />
     </form>
   );
@@ -130,6 +149,10 @@ export function MeetManager({ meets }: { meets: MeetSummary[] }) {
                   <p className="mt-1 text-sm text-muted">
                     {meet.starts_on} to {meet.ends_on}
                   </p>
+                  <p className="mt-1 text-xs text-muted">
+                    {meet.eventCount}{" "}
+                    {meet.eventCount === 1 ? "event" : "events"}
+                  </p>
                 </div>
                 <StatusBadge
                   tone={
@@ -145,7 +168,7 @@ export function MeetManager({ meets }: { meets: MeetSummary[] }) {
               </div>
               <div className="mt-4">
                 <Link
-                  className="text-sm font-semibold text-primary underline"
+                  className="inline-flex min-h-10 items-center rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white transition hover:-translate-y-0.5 hover:bg-primary/90"
                   href={`/admin/meets/${meet.id}`}
                 >
                   Configure houses and events
