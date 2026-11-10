@@ -18,7 +18,7 @@ export type StudentFormValue = {
   lastName: string;
   otherNames: string | null;
   academicStatus: string;
-  houseId: string;
+  houseId: string | null;
 };
 
 const inputClass =
@@ -51,16 +51,13 @@ export function StudentForm({
         />
       </label>
       <label className="text-xs font-medium">
-        House
+        House (optional)
         <select
           name="houseId"
           defaultValue={student?.houseId ?? ""}
           className={inputClass}
-          required
         >
-          <option value="" disabled>
-            Select a house
-          </option>
+          <option value="">Assign later</option>
           {houses.map((house) => (
             <option key={house.id} value={house.id}>
               {house.name} ({house.code})

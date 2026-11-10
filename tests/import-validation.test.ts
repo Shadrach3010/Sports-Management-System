@@ -12,6 +12,7 @@ import type { ColumnMapping, ImportHouse } from "../features/imports/types.ts";
 
 const mapping: ColumnMapping = {
   studentNumber: 0,
+  fullName: null,
   firstName: 1,
   lastName: 2,
   otherNames: 3,
@@ -62,13 +63,83 @@ test("rejects content that does not match a safe CSV or XLSX container", () => {
 
 test("requires every mandatory column and prevents duplicate mappings", () => {
   assert.match(
-    validateMapping({ ...mapping, house: null }, 6) ?? "",
-    /required field/,
+    validateMapping({ ...mapping, lastName: null }, 6) ?? "",
+    /either full name or separate/,
   );
+  assert.equal(validateMapping({ ...mapping, house: null }, 6), null);
   assert.match(
     validateMapping({ ...mapping, house: 0 }, 6) ?? "",
     /only be mapped once/,
   );
+});
+
+test("maps the college sheet full name and CURRENT status without a house", () => {
+  const collegeMapping: ColumnMapping = {
+    studentNumber: 0,
+    fullName: 1,
+    firstName: null,
+    lastName: null,
+    otherNames: null,
+    academicStatus: 5,
+    house: null,
+  };
+  assert.equal(validateMapping(collegeMapping, 8), null);
+  const { stagedRows, summary } = validateImportRows(
+    [
+      [
+        "905005991",
+        "Aaliyah Blessing Christine Mc'Ewen",
+        "",
+        "",
+        "",
+        "CURRENT",
+        "Active",
+        "Never",
+      ],
+    ],
+    collegeMapping,
+    houses,
+    new Set(),
+  );
+  assert.equal(summary.valid, 1);
+  assert.deepEqual(
+    {
+      first: stagedRows[0].legal_first_name,
+      other: stagedRows[0].other_names,
+      last: stagedRows[0].legal_last_name,
+      academic: stagedRows[0].enrollment_status,
+      house: stagedRows[0].house_id,
+    },
+    {
+      first: "Aaliyah",
+      other: "Blessing Christine",
+      last: "Mc'Ewen",
+      academic: "enrolled",
+      house: null,
+    },
+  );
+});
+
+test("rejects a one-word full name and a supplied unmatched house", () => {
+  const fullNameMapping: ColumnMapping = {
+    ...mapping,
+    fullName: 1,
+    firstName: null,
+    lastName: null,
+    otherNames: null,
+    academicStatus: 2,
+    house: 3,
+  };
+  const { stagedRows } = validateImportRows(
+    [["ST-100", "Aaliyah", "CURRENT", "Unknown House"]],
+    fullNameMapping,
+    houses,
+    new Set(),
+  );
+  assert.deepEqual(stagedRows[0].issues, [
+    "missing_last_name",
+    "unmatched_house",
+  ]);
 });
 
 test("detects duplicate rows within one import", () => {

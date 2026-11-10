@@ -33,6 +33,8 @@ The house registration page displays the **effective** status. Opening the meet 
 
 If an older meet is already `registration_open` with zero events, its manager can return it to `draft` from `/admin/meets` provided it has no scoring data. Then add the event and reopen registration. A meet with event or scoring records cannot use this recovery path.
 
+An accidentally closed meet with linked events is not deleted or reopened through the ordinary workflow. Closing registration freezes the register for review; archived meets preserve the competition and audit trail. To rehearse a new flow, create a distinct draft meet even in the same year. Meet names are unique within a year, and registration must close before the meet starts. If an operational meet needs an exceptional reversal, investigate its rosters, attendance, results, and audit history before authorizing a separate, audited recovery migration. Do not update lifecycle status directly in the SQL editor.
+
 ## Separation of duties
 
 - Roster submitter ≠ roster reviewer.

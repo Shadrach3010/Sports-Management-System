@@ -15,6 +15,9 @@ const academicStatuses = new Set([
   "graduated",
   "withdrawn",
 ]);
+const statusAliases: Record<string, string> = {
+  current: "enrolled",
+};
 
 export function validateFileMetadata(
   file: Pick<File, "name" | "size" | "type">,
@@ -61,17 +64,22 @@ export function validateFileSignature(
 }
 
 export function validateMapping(mapping: ColumnMapping, headerCount: number) {
-  const required = [
-    "studentNumber",
-    "firstName",
-    "lastName",
-    "academicStatus",
-    "house",
-  ] as const;
-  if (required.some((field) => mapping[field] === null))
-    return "Map every required field before validation.";
+  if (
+    mapping.studentNumber == null ||
+    mapping.academicStatus == null ||
+    (mapping.fullName == null &&
+      (mapping.firstName == null || mapping.lastName == null))
+  )
+    return "Map student number, academic status, and either full name or separate first and last names.";
+  if (
+    mapping.fullName != null &&
+    (mapping.firstName != null ||
+      mapping.lastName != null ||
+      mapping.otherNames != null)
+  )
+    return "Use either full name or separate name columns, not both.";
   const selected = Object.values(mapping).filter(
-    (value): value is number => value !== null,
+    (value): value is number => value !== null && value !== undefined,
   );
   if (
     selected.some(
@@ -85,9 +93,20 @@ export function validateMapping(mapping: ColumnMapping, headerCount: number) {
 }
 
 function cell(row: string[], index: number | null) {
-  if (index === null) return null;
+  if (index == null) return null;
   const value = String(row[index] ?? "").trim();
   return value || null;
+}
+
+function splitFullName(value: string | null) {
+  const words = value?.trim().split(/\s+/) ?? [];
+  if (words.length < 2)
+    return { firstName: words[0] ?? null, lastName: null, otherNames: null };
+  return {
+    firstName: words[0],
+    lastName: words.at(-1) ?? null,
+    otherNames: words.slice(1, -1).join(" ") || null,
+  };
 }
 
 function unique<T>(values: T[]) {
@@ -113,23 +132,29 @@ export function validateImportRows(
 
   const stagedRows: StagedImportRow[] = rows.map((row, index) => {
     const studentNumber = cell(row, mapping.studentNumber);
-    const firstName = cell(row, mapping.firstName);
-    const lastName = cell(row, mapping.lastName);
-    const academicStatus =
+    const fullName = cell(row, mapping.fullName);
+    const split = mapping.fullName == null ? null : splitFullName(fullName);
+    const firstName = split?.firstName ?? cell(row, mapping.firstName);
+    const lastName = split?.lastName ?? cell(row, mapping.lastName);
+    const otherNames = split?.otherNames ?? cell(row, mapping.otherNames);
+    const rawAcademicStatus =
       cell(row, mapping.academicStatus)?.toLowerCase() ?? null;
+    const academicStatus = rawAcademicStatus
+      ? (statusAliases[rawAcademicStatus] ?? rawAcademicStatus)
+      : null;
     const sourceHouse = cell(row, mapping.house);
     const matchedHouse = sourceHouse
       ? houseLookup.get(sourceHouse.toLowerCase())
       : undefined;
     const issues: ImportIssue[] = [];
     if (!studentNumber) issues.push("missing_student_number");
+    if (mapping.fullName != null && !fullName) issues.push("missing_full_name");
     if (!firstName) issues.push("missing_first_name");
     if (!lastName) issues.push("missing_last_name");
     if (!academicStatus) issues.push("missing_academic_status");
     else if (!academicStatuses.has(academicStatus))
       issues.push("invalid_academic_status");
-    if (!sourceHouse) issues.push("missing_house");
-    else if (!matchedHouse) issues.push("unmatched_house");
+    if (sourceHouse && !matchedHouse) issues.push("unmatched_house");
     if (studentNumber && (counts.get(studentNumber.toLowerCase()) ?? 0) > 1)
       issues.push("duplicate_in_file");
     if (
@@ -142,7 +167,7 @@ export function validateImportRows(
       student_number: studentNumber,
       legal_first_name: firstName,
       legal_last_name: lastName,
-      other_names: cell(row, mapping.otherNames),
+      other_names: otherNames,
       enrollment_status: academicStatuses.has(academicStatus ?? "")
         ? academicStatus
         : null,

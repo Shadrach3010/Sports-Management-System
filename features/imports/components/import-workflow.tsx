@@ -17,14 +17,20 @@ import type {
 
 const fields: { key: ImportField; label: string; optional?: boolean }[] = [
   { key: "studentNumber", label: "Student number" },
-  { key: "firstName", label: "First name" },
-  { key: "lastName", label: "Last name" },
+  {
+    key: "fullName",
+    label: "Full name (or map separate names)",
+    optional: true,
+  },
+  { key: "firstName", label: "First name (if separate)", optional: true },
+  { key: "lastName", label: "Last name (if separate)", optional: true },
   { key: "otherNames", label: "Other names", optional: true },
   { key: "academicStatus", label: "Academic status" },
-  { key: "house", label: "House" },
+  { key: "house", label: "House", optional: true },
 ];
 const emptyMapping: ColumnMapping = {
   studentNumber: null,
+  fullName: null,
   firstName: null,
   lastName: null,
   otherNames: null,
@@ -35,8 +41,8 @@ const issueLabels: Record<string, string> = {
   missing_student_number: "Missing student number",
   missing_first_name: "Missing first name",
   missing_last_name: "Missing last name",
+  missing_full_name: "Missing full name",
   missing_academic_status: "Missing academic status",
-  missing_house: "Missing house",
   invalid_academic_status: "Invalid academic status",
   duplicate_in_file: "Duplicate in file",
   student_number_exists: "Already exists",
@@ -53,6 +59,7 @@ function suggestMapping(headers: string[]): ColumnMapping {
     const index = normalized.findIndex((header) => names.includes(header));
     return index < 0 ? null : index;
   };
+  const fullName = find("name", "fullname", "studentname");
   return {
     studentNumber: find(
       "studentnumber",
@@ -60,9 +67,14 @@ function suggestMapping(headers: string[]): ColumnMapping {
       "registrationnumber",
       "admissionnumber",
     ),
-    firstName: find("firstname", "givenname"),
-    lastName: find("lastname", "surname", "familyname"),
-    otherNames: find("othernames", "middlename", "middlenames"),
+    fullName,
+    firstName: fullName === null ? find("firstname", "givenname") : null,
+    lastName:
+      fullName === null ? find("lastname", "surname", "familyname") : null,
+    otherNames:
+      fullName === null
+        ? find("othernames", "middlename", "middlenames")
+        : null,
     academicStatus: find("academicstatus", "enrollmentstatus", "status"),
     house: find("house", "housename", "housecode"),
   };
@@ -178,6 +190,12 @@ export function ImportWorkflow() {
           CSV or XLSX only, maximum 5 MB and 5,000 data rows. Macros and
           formulas are never executed.
         </p>
+        <p className="mt-2 text-sm text-muted">
+          For the college sheet, map Student ID to student number, Name to full
+          name, and Status to academic status. CURRENT becomes Enrolled and
+          GRADUATED becomes Graduated. House is optional and can be assigned
+          later. Email, Course, Active, and Last login are ignored.
+        </p>
       </div>
       {!inspection ? (
         <div className="space-y-3">
@@ -252,6 +270,13 @@ export function ImportWorkflow() {
               </label>
             ))}
           </div>
+          {mapping.fullName !== null ? (
+            <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+              Full names are split at the first and last words; words between
+              them become other names. Review the split below before importing
+              official records.
+            </p>
+          ) : null}
           <div className="flex flex-wrap gap-3">
             <Button type="button" disabled={isPending} onClick={validate}>
               {isPending ? "Validating entire file…" : "Validate entire import"}
@@ -289,7 +314,9 @@ export function ImportWorkflow() {
                 <tr>
                   <th className="px-3 py-2">Row</th>
                   <th className="px-3 py-2">Student number</th>
-                  <th className="px-3 py-2">Name</th>
+                  <th className="px-3 py-2">First name</th>
+                  <th className="px-3 py-2">Other names</th>
+                  <th className="px-3 py-2">Last name</th>
                   <th className="px-3 py-2">House</th>
                   <th className="px-3 py-2">Validation</th>
                 </tr>
@@ -301,12 +328,12 @@ export function ImportWorkflow() {
                     <td className="px-3 py-2 font-mono">
                       {row.student_number ?? "—"}
                     </td>
+                    <td className="px-3 py-2">{row.legal_first_name ?? "—"}</td>
+                    <td className="px-3 py-2">{row.other_names ?? "—"}</td>
+                    <td className="px-3 py-2">{row.legal_last_name ?? "—"}</td>
                     <td className="px-3 py-2">
-                      {[row.legal_first_name, row.legal_last_name]
-                        .filter(Boolean)
-                        .join(" ") || "—"}
+                      {row.source_house ?? "Assign later"}
                     </td>
-                    <td className="px-3 py-2">{row.source_house ?? "—"}</td>
                     <td className="px-3 py-2">
                       {row.issues.length ? (
                         row.issues
@@ -337,7 +364,8 @@ export function ImportWorkflow() {
             <span>
               I confirm that the mapping and validation report have been
               reviewed. Only valid, non-conflicting rows should be created, with
-              eligibility set to unverified.
+              eligibility set to unverified. Students without a source house
+              remain unassigned until an authorized staff member assigns them.
             </span>
           </label>
           <div className="flex flex-wrap gap-3">

@@ -65,12 +65,14 @@ In **Scoring policy**, an administrator or sports coordinator creates a versione
 
 ## Student import procedure
 
+Apply `202611050020_optional_student_house_import.sql` after migration 019 before importing students without houses. It allows unassigned students in the official register while competition registration still requires a house.
+
 1. Sign in as a system administrator or registration officer and open `/admin/imports`.
 2. Upload a CSV or `.xlsx` file no larger than 5 MB and 5,000 data rows. Legacy `.xls` and macro-enabled files are rejected.
-3. Inspect the preview and map student number, first name, last name, academic status, and house; other names are optional.
-4. Validate the complete file. Resolve duplicate numbers, existing-record conflicts, missing fields, and house names/codes that do not match an active house.
+3. Inspect the preview and map student number, academic status, and either full name or separate first and last name columns. For the illustrated college workbook, map **Student ID → Student number**, **Name → Full name**, and **Status → Academic status**; leave House unmapped. `CURRENT` becomes `enrolled`, while `GRADUATED` becomes `graduated`. Email, Course, Active, and Last login are ignored; they do not establish sports eligibility.
+4. Validate the complete file. With Full name, the first word becomes first name, the last word becomes last name, and middle words become other names. Review these separate preview columns, especially for compound surnames. Resolve duplicate numbers, existing-record conflicts, missing fields, and any supplied house names/codes that do not match an active house.
 5. Explicitly confirm the staged batch. Valid rows are created without overwriting existing students; rejected rows remain in the protected batch ledger and can be exported as CSV.
-6. Verify competition eligibility separately. Importing a student never makes the student eligible.
+6. Assign a house later in the student record if the source has no house, then verify competition eligibility separately. Importing a student never makes the student eligible. An unassigned student cannot be placed on a house roster.
 
 The application parses files in trusted server code, never executes formulas or macros, and does not persist the uploaded source file. Do not commit real student files or exported error reports to Git.
 
@@ -100,7 +102,7 @@ Do not print or distribute a pass until its athlete and event details have been 
 6. `/public/results` and `/standings` expose intentionally published information only. Standings begin as provisional and require explicit, audited confirmation and final declaration. `/admin/reports` records staff exports, while `/admin/audit` exposes protected audit metadata without payload snapshots.
 7. Assignment and decision notices are available to their recipient at `/notifications`.
 
-See [competition workflow](docs/competition-workflow.md), [presentation walkthrough](docs/presentation-runbook.md), [scoring policy](docs/scoring-policy.md), and the [operations runbook](docs/operations-runbook.md).
+Start with the [illustrated workflow manual](docs/CSMIS_Workflow_Manual.pdf) for meet recovery and a role-by-role walkthrough. The editable generator is `scripts/generate_workflow_manual_pdf.py` (run with Python and ReportLab). See also [competition workflow](docs/competition-workflow.md), [presentation walkthrough](docs/presentation-runbook.md), [scoring policy](docs/scoring-policy.md), and the [operations runbook](docs/operations-runbook.md).
 
 ## Quality checks
 

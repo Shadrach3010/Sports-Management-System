@@ -23,7 +23,7 @@ type StudentDetail = {
   eligibility_verified_at: string | null;
   public_results_name: string | null;
   public_results_consent_at: string | null;
-  house_id: string;
+  house_id: string | null;
   house: { name: string; code: string } | null;
 };
 
@@ -63,6 +63,7 @@ export default async function StudentDetailPage({
   const houseOptions = houses ?? [];
   if (
     !houseOptions.some((house) => house.id === student.house_id) &&
+    student.house_id &&
     student.house
   )
     houseOptions.push({

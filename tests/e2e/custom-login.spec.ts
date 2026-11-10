@@ -73,6 +73,29 @@ test.describe("custom staff login", () => {
     await expect(
       page.getByRole("button", { name: "Create event" }),
     ).toBeEnabled();
+    const form = page.locator("form").filter({
+      has: page.getByRole("heading", { name: "Create event" }),
+    });
+    await form.locator('select[name="categoryId"]').selectOption({ index: 1 });
+    await form.locator('input[name="code"]').fill("TEST-DATE-REJECT");
+    await form.locator('input[name="name"]').fill("Date validation check");
+    await form.locator('input[name="maximumParticipants"]').fill("4");
+    const min = await form
+      .locator('input[name="startsAt"]')
+      .getAttribute("min");
+    const dayBefore = new Date(
+      Date.parse(`${min?.slice(0, 10)}T00:00:00Z`) - 86_400_000,
+    )
+      .toISOString()
+      .slice(0, 10);
+    await form.locator('input[name="startsAt"]').fill(`${dayBefore}T10:00`);
+    await form.locator('input[name="endsAt"]').fill(`${dayBefore}T11:00`);
+    await form.evaluate((element) => element.setAttribute("novalidate", ""));
+    await form.getByRole("button", { name: "Create event" }).click();
+    await expect(form.getByText(/Event dates must be between/)).toBeVisible();
+    await expect(form.locator('input[name="code"]')).toHaveValue(
+      "TEST-DATE-REJECT",
+    );
   });
 
   test("administrator account icons open an edit dialog", async ({ page }) => {

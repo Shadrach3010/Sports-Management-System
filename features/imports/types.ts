@@ -1,5 +1,6 @@
 export type ImportField =
   | "studentNumber"
+  | "fullName"
   | "firstName"
   | "lastName"
   | "otherNames"
@@ -10,8 +11,8 @@ export type ImportIssue =
   | "missing_student_number"
   | "missing_first_name"
   | "missing_last_name"
+  | "missing_full_name"
   | "missing_academic_status"
-  | "missing_house"
   | "invalid_academic_status"
   | "duplicate_in_file"
   | "student_number_exists"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState, type ChangeEvent } from "react";
 
 import { ActionMessage } from "@/components/ui/action-message";
 import { SubmitButton } from "@/components/ui/submit-button";
@@ -12,6 +12,7 @@ import {
   setMeetHouseAction,
   transitionEventAction,
 } from "@/features/meets/actions";
+import type { ActionState } from "@/features/shared/action-state";
 import { initialActionState } from "@/features/shared/action-state";
 
 type House = { id: string; name: string; code: string; participating: boolean };
@@ -30,6 +31,21 @@ type Event = {
 };
 const inputClass =
   "mt-1 min-h-10 w-full rounded-md border bg-white px-3 py-2 text-sm";
+const emptyEventDraft = {
+  categoryId: "",
+  code: "",
+  name: "",
+  description: "",
+  eventType: "individual",
+  formatCode: "race",
+  maximumParticipants: "",
+  minimumTeamSize: "",
+  maximumTeamSize: "",
+  startsAt: "",
+  endsAt: "",
+  rules: "",
+  requirements: "",
+};
 
 function HouseToggle({ meetId, house }: { meetId: string; house: House }) {
   const [state, action] = useActionState(
@@ -145,12 +161,16 @@ function EventTransition({
 export function MeetConfiguration({
   meetId,
   meetStatus,
+  meetStartDate,
+  meetEndDate,
   houses,
   categories,
   events,
 }: {
   meetId: string;
   meetStatus: string;
+  meetStartDate: string;
+  meetEndDate: string;
   houses: House[];
   categories: Category[];
   events: Event[];
@@ -160,10 +180,32 @@ export function MeetConfiguration({
     createCategoryAction,
     initialActionState,
   );
-  const [eventState, eventAction] = useActionState(
-    createEventAction,
-    initialActionState,
-  );
+  const [eventState, setEventState] = useState<ActionState>(initialActionState);
+  const [eventDraft, setEventDraft] = useState(emptyEventDraft);
+  const eventAction = async (formData: FormData) => {
+    try {
+      const result = await createEventAction(initialActionState, formData);
+      setEventState(result);
+      if (result.status === "success") setEventDraft(emptyEventDraft);
+    } catch {
+      setEventState({
+        status: "error",
+        message: "The request could not be completed. Try again.",
+      });
+    }
+  };
+  const field = (name: keyof typeof emptyEventDraft) => ({
+    value: eventDraft[name],
+    onChange: (
+      event: ChangeEvent<
+        HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
+      >,
+    ) =>
+      setEventDraft((current) => ({
+        ...current,
+        [name]: event.currentTarget.value,
+      })),
+  });
   return (
     <div className="space-y-8">
       <section>
@@ -213,6 +255,10 @@ export function MeetConfiguration({
             className="grid gap-3 rounded-xl border bg-surface p-5 shadow-sm sm:grid-cols-2"
           >
             <h2 className="font-semibold sm:col-span-2">Create event</h2>
+            <p className="sm:col-span-2 text-sm text-muted">
+              Schedule events from {meetStartDate} through {meetEndDate}. Your
+              entries stay in the form if a save is rejected.
+            </p>
             {categories.length === 0 ? (
               <p className="sm:col-span-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
                 Add a sport category first; every event needs one.
@@ -221,7 +267,12 @@ export function MeetConfiguration({
             <input type="hidden" name="meetId" value={meetId} />
             <label className="text-xs font-medium">
               Category
-              <select className={inputClass} name="categoryId" required>
+              <select
+                className={inputClass}
+                name="categoryId"
+                required
+                {...field("categoryId")}
+              >
                 <option value="">Select</option>
                 {categories.map((category) => (
                   <option value={category.id} key={category.id}>
@@ -232,26 +283,48 @@ export function MeetConfiguration({
             </label>
             <label className="text-xs font-medium">
               Code
-              <input className={inputClass} name="code" required />
+              <input
+                className={inputClass}
+                name="code"
+                required
+                {...field("code")}
+              />
             </label>
             <label className="text-xs font-medium">
               Name
-              <input className={inputClass} name="name" required />
+              <input
+                className={inputClass}
+                name="name"
+                required
+                {...field("name")}
+              />
             </label>
             <label className="text-xs font-medium">
               Description
-              <input className={inputClass} name="description" />
+              <input
+                className={inputClass}
+                name="description"
+                {...field("description")}
+              />
             </label>
             <label className="text-xs font-medium">
               Entry type
-              <select className={inputClass} name="eventType">
+              <select
+                className={inputClass}
+                name="eventType"
+                {...field("eventType")}
+              >
                 <option value="individual">Individual</option>
                 <option value="team">Team</option>
               </select>
             </label>
             <label className="text-xs font-medium">
               Format
-              <select className={inputClass} name="formatCode">
+              <select
+                className={inputClass}
+                name="formatCode"
+                {...field("formatCode")}
+              >
                 <option value="race">Race</option>
                 <option value="jump">Jump</option>
                 <option value="throw">Throw</option>
@@ -268,6 +341,7 @@ export function MeetConfiguration({
                 type="number"
                 min="1"
                 required
+                {...field("maximumParticipants")}
               />
             </label>
             <label className="text-xs font-medium">
@@ -277,6 +351,9 @@ export function MeetConfiguration({
                 name="minimumTeamSize"
                 type="number"
                 min="2"
+                required={eventDraft.eventType === "team"}
+                disabled={eventDraft.eventType !== "team"}
+                {...field("minimumTeamSize")}
               />
             </label>
             <label className="text-xs font-medium">
@@ -286,6 +363,9 @@ export function MeetConfiguration({
                 name="maximumTeamSize"
                 type="number"
                 min="2"
+                required={eventDraft.eventType === "team"}
+                disabled={eventDraft.eventType !== "team"}
+                {...field("maximumTeamSize")}
               />
             </label>
             <label className="text-xs font-medium">
@@ -294,7 +374,10 @@ export function MeetConfiguration({
                 className={inputClass}
                 name="startsAt"
                 type="datetime-local"
+                min={`${meetStartDate}T00:00`}
+                max={`${meetEndDate}T23:59`}
                 required
+                {...field("startsAt")}
               />
             </label>
             <label className="text-xs font-medium">
@@ -303,16 +386,27 @@ export function MeetConfiguration({
                 className={inputClass}
                 name="endsAt"
                 type="datetime-local"
+                min={`${meetStartDate}T00:00`}
+                max={`${meetEndDate}T23:59`}
                 required
+                {...field("endsAt")}
               />
             </label>
             <label className="text-xs font-medium">
               Rules
-              <textarea className={inputClass} name="rules" />
+              <textarea
+                className={inputClass}
+                name="rules"
+                {...field("rules")}
+              />
             </label>
             <label className="text-xs font-medium">
               Requirements
-              <textarea className={inputClass} name="requirements" />
+              <textarea
+                className={inputClass}
+                name="requirements"
+                {...field("requirements")}
+              />
             </label>
             <div className="sm:col-span-2">
               <ActionMessage state={eventState} />

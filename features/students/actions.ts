@@ -24,7 +24,7 @@ function parseStudent(formData: FormData) {
     lastName: formData.get("lastName"),
     otherNames: formData.get("otherNames") ?? "",
     academicStatus: formData.get("academicStatus"),
-    houseId: formData.get("houseId"),
+    houseId: formData.get("houseId") ?? "",
   });
 }
 

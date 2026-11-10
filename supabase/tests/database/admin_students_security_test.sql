@@ -1,7 +1,7 @@
 begin;
 
 create extension if not exists pgtap with schema extensions;
-select plan(19);
+select plan(23);
 
 -- Transactional fixtures only; these values never become production seed data.
 insert into public.users (id, email, display_name, password_hash)
@@ -111,6 +111,31 @@ select results_eq(
   $$select imported_rows::bigint, rejected_rows::bigint from public.student_import_batches where file_name = 'transactional-test.csv'$$,
   $$values (1::bigint, 1::bigint)$$,
   'partial import outcome records accepted and rejected row totals'
+);
+
+select lives_ok(
+  $$select public.stage_student_import(
+    'unassigned-test.xlsx', 'xlsx', 100, repeat('b', 64),
+    '{"studentNumber":0,"fullName":1,"firstName":null,"lastName":null,"otherNames":null,"academicStatus":2,"house":null}'::jsonb,
+    '[
+      {"row_number":2,"student_number":"M2-NO-HOUSE","legal_first_name":"Aaliyah","legal_last_name":"Mc\u0027Ewen","other_names":"Blessing Christine","enrollment_status":"enrolled","house_id":null,"source_house":null,"issues":[]},
+      {"row_number":3,"student_number":"M2-UNKNOWN-HOUSE","legal_first_name":"Unknown","legal_last_name":"House","other_names":null,"enrollment_status":"enrolled","house_id":null,"source_house":"UNKNOWN","issues":[]}
+    ]'::jsonb
+  )$$,
+  'registration officer can stage a register without a house column'
+);
+select lives_ok(
+  $$select public.commit_student_import((select id from public.student_import_batches where file_name = 'unassigned-test.xlsx'))$$,
+  'an unassigned student imports while a supplied unmatched house is rejected'
+);
+select results_eq(
+  $$select student_number, house_id is null, eligibility_status from public.students where student_number = 'M2-NO-HOUSE'$$,
+  $$values ('M2-NO-HOUSE'::text, true, 'unverified'::text)$$,
+  'an imported student has no automatic house or eligibility approval'
+);
+select lives_ok(
+  $$update public.students set house_id = '11000000-0000-4000-8000-000000000001' where student_number = 'M2-NO-HOUSE'$$,
+  'registration officer can assign a house later'
 );
 
 reset role;

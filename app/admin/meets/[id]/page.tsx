@@ -86,6 +86,8 @@ export default async function MeetDetailPage({
       <MeetConfiguration
         meetId={id}
         meetStatus={meet.status}
+        meetStartDate={meet.starts_on}
+        meetEndDate={meet.ends_on}
         houses={(houses ?? []).map((house) => ({
           ...house,
           participating: active.has(house.id),

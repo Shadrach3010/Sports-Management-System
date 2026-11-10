@@ -1,11 +1,11 @@
 # Presentation walkthrough
 
-The configured **Test 2** meet is now a draft with three participating houses, one category and no events. An administrator or sports coordinator can add the first event at `/admin/meets/7ac8fa75-0171-400b-b73b-e9695b680baa`. Use approved meet dates, event details and scoring values; do not present demo records as official college data.
+The existing **Test 2** and demo meets are archived and retain linked competition history. Start a new draft meet for a walkthrough. Use a distinct name for the year, meet dates after the registration close date, and approved event details and scoring values. Do not present demo records as official college data.
 
 ## Set up the meet
 
-1. Sign in as a system administrator or sports coordinator and open **Sports meets → Test 2 → Configure houses and events**.
-2. Review the participating houses and existing category. Fill **Create event** with its code, name, entry type, format, participant limit, schedule, rules and requirements. Event dates must fall within the meet dates.
+1. Sign in as a system administrator or sports coordinator and open **Sports meets → Create draft meet**. Give the meet a new name, choose the matching year and dates, and set a registration window that closes before the meet starts.
+2. Open the new meet using **Configure houses and events**. Select participating houses, add a sport category, then fill **Create event** with its code, name, entry type, format, participant limit, schedule, rules and requirements. Event dates must fall within the meet dates.
 3. Return to **Sports meets**. The event count must be at least one before **Open registration** is available.
 4. Open registration for the meet, then separately open registration for each event in its configuration page. The house registration page also checks the configured registration time window.
 

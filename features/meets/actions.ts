@@ -22,6 +22,14 @@ function databaseMessage(
 ) {
   if (error?.code === "23505")
     return "A record with that name or code already exists.";
+  if (error?.message?.includes("event schedule must fall within meet dates"))
+    return "Event start and end must fall within the sports meet dates.";
+  if (error?.message?.includes("event category belongs to another meet"))
+    return "Choose a category from this sports meet.";
+  if (error?.message?.includes("events can be created only while"))
+    return "Return to a draft meet before creating an event.";
+  if (error?.message?.includes("venue schedule conflicts"))
+    return "This event overlaps another event at the same venue.";
   if (error?.message?.includes("create at least one event"))
     return "Create at least one event before opening registration.";
   if (error?.message?.includes("only an eventless, unscored meet"))
@@ -64,7 +72,10 @@ export async function createMeetAction(
     if (error)
       return {
         status: "error",
-        message: databaseMessage(error, "The meet could not be created."),
+        message:
+          error.code === "23505"
+            ? "A meet with this name already exists for that year. Choose a distinct name; archived meets remain in the audit history."
+            : databaseMessage(error, "The meet could not be created."),
       };
     revalidatePath("/admin/meets");
     return {
@@ -133,6 +144,14 @@ export async function transitionMeetAction(
     });
     if (!parsed.success)
       return { status: "error", message: "Invalid meet status request." };
+    if (
+      parsed.data.status === "registration_closed" &&
+      formData.get("confirmClose") !== "on"
+    )
+      return {
+        status: "error",
+        message: "Confirm that registration should close before continuing.",
+      };
     const { data, error } = await supabase
       .from("sports_meets")
       .update({
@@ -268,6 +287,31 @@ export async function createEventAction(
           parsed.error.issues[0]?.message ?? "Review the event configuration.",
       };
     const value = parsed.data;
+    const { data: meet, error: meetError } = await supabase
+      .from("sports_meets")
+      .select("starts_on,ends_on,status")
+      .eq("id", value.meetId)
+      .maybeSingle();
+    if (meetError || !meet)
+      return {
+        status: "error",
+        message: "The sports meet could not be found.",
+      };
+    if (meet.status !== "draft")
+      return {
+        status: "error",
+        message: "Events can only be created while the meet is in draft.",
+      };
+    if (
+      value.startsAt.slice(0, 10) < meet.starts_on ||
+      value.startsAt.slice(0, 10) > meet.ends_on ||
+      value.endsAt.slice(0, 10) < meet.starts_on ||
+      value.endsAt.slice(0, 10) > meet.ends_on
+    )
+      return {
+        status: "error",
+        message: `Event dates must be between ${meet.starts_on} and ${meet.ends_on}.`,
+      };
     const { error } = await supabase.from("events").insert({
       sports_meet_id: value.meetId,
       sport_category_id: value.categoryId,

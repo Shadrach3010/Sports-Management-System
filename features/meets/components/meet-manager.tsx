@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useState, type ChangeEvent } from "react";
 
 import { ActionMessage } from "@/components/ui/action-message";
 import { SubmitButton } from "@/components/ui/submit-button";
@@ -11,6 +11,7 @@ import {
   transitionMeetAction,
 } from "@/features/meets/actions";
 import { initialActionState } from "@/features/shared/action-state";
+import type { ActionState } from "@/features/shared/action-state";
 
 export type MeetSummary = {
   id: string;
@@ -31,6 +32,7 @@ function MeetStatusForm({ meet }: { meet: MeetSummary }) {
     transitionMeetAction,
     initialActionState,
   );
+  const [selectedStatus, setSelectedStatus] = useState("");
   const transitions: Record<string, string[]> = {
     draft: ["registration_open", "cancelled"],
     registration_open:
@@ -60,7 +62,14 @@ function MeetStatusForm({ meet }: { meet: MeetSummary }) {
       ) : null}
       <label className="text-xs font-medium">
         Next status
-        <select className={inputClass} name="status">
+        <select
+          className={inputClass}
+          name="status"
+          value={selectedStatus}
+          onChange={(event) => setSelectedStatus(event.currentTarget.value)}
+          required
+        >
+          <option value="">Select next status</option>
           {choices.map((status) => (
             <option value={status} key={status}>
               {status.replaceAll("_", " ")}
@@ -68,8 +77,22 @@ function MeetStatusForm({ meet }: { meet: MeetSummary }) {
           ))}
         </select>
       </label>
+      {selectedStatus === "registration_closed" ? (
+        <label className="w-full rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+          <input
+            className="mr-2 accent-amber-700"
+            type="checkbox"
+            name="confirmClose"
+            required
+          />
+          I understand that closing registration stops ordinary athlete entries
+          and cannot be reversed from this page.
+        </label>
+      ) : null}
       <SubmitButton
-        idleLabel={choices[0] === "draft" ? "Return to draft" : "Apply"}
+        idleLabel={
+          selectedStatus === "draft" ? "Return to draft" : "Change status"
+        }
         pendingLabel="Updating"
       />
       <ActionMessage state={state} />
@@ -78,17 +101,62 @@ function MeetStatusForm({ meet }: { meet: MeetSummary }) {
 }
 
 export function MeetManager({ meets }: { meets: MeetSummary[] }) {
-  const [state, action] = useActionState(createMeetAction, initialActionState);
+  const [state, setState] = useState<ActionState>(initialActionState);
+  const [draft, setDraft] = useState({
+    name: "",
+    year: "2026",
+    startsOn: "",
+    endsOn: "",
+    registrationOpensAt: "",
+    registrationClosesAt: "",
+  });
+  const field = (name: keyof typeof draft) => ({
+    value: draft[name],
+    onChange: (event: ChangeEvent<HTMLInputElement>) =>
+      setDraft((current) => ({
+        ...current,
+        [name]: event.currentTarget.value,
+      })),
+  });
+  const createAction = async (formData: FormData) => {
+    try {
+      const result = await createMeetAction(initialActionState, formData);
+      setState(result);
+      if (result.status === "success")
+        setDraft({
+          name: "",
+          year: "2026",
+          startsOn: "",
+          endsOn: "",
+          registrationOpensAt: "",
+          registrationClosesAt: "",
+        });
+    } catch {
+      setState({
+        status: "error",
+        message: "The request could not be completed. Try again.",
+      });
+    }
+  };
   return (
     <div className="grid gap-6 xl:grid-cols-[22rem_1fr]">
       <form
-        action={action}
+        action={createAction}
         className="h-fit space-y-4 rounded-xl border bg-surface p-5 shadow-sm"
       >
         <h2 className="font-semibold">Create sports meet</h2>
+        <p className="text-sm text-muted">
+          Archived meets stay on record. Give this meet a new name for its year;
+          registration must close before the meet begins.
+        </p>
         <label className="block text-xs font-medium">
           Meet name
-          <input className={inputClass} name="name" required />
+          <input
+            className={inputClass}
+            name="name"
+            required
+            {...field("name")}
+          />
         </label>
         <label className="block text-xs font-medium">
           Year
@@ -96,8 +164,8 @@ export function MeetManager({ meets }: { meets: MeetSummary[] }) {
             className={inputClass}
             name="year"
             type="number"
-            defaultValue="2026"
             required
+            {...field("year")}
           />
         </label>
         <div className="grid grid-cols-2 gap-3">
@@ -108,11 +176,18 @@ export function MeetManager({ meets }: { meets: MeetSummary[] }) {
               name="startsOn"
               type="date"
               required
+              {...field("startsOn")}
             />
           </label>
           <label className="text-xs font-medium">
             End date
-            <input className={inputClass} name="endsOn" type="date" required />
+            <input
+              className={inputClass}
+              name="endsOn"
+              type="date"
+              required
+              {...field("endsOn")}
+            />
           </label>
         </div>
         <label className="block text-xs font-medium">
@@ -122,6 +197,7 @@ export function MeetManager({ meets }: { meets: MeetSummary[] }) {
             name="registrationOpensAt"
             type="datetime-local"
             required
+            {...field("registrationOpensAt")}
           />
         </label>
         <label className="block text-xs font-medium">
@@ -131,6 +207,7 @@ export function MeetManager({ meets }: { meets: MeetSummary[] }) {
             name="registrationClosesAt"
             type="datetime-local"
             required
+            {...field("registrationClosesAt")}
           />
         </label>
         <ActionMessage state={state} />
@@ -174,7 +251,7 @@ export function MeetManager({ meets }: { meets: MeetSummary[] }) {
                   Configure houses and events
                 </Link>
               </div>
-              <MeetStatusForm meet={meet} />
+              <MeetStatusForm key={`${meet.id}:${meet.status}`} meet={meet} />
             </article>
           ))
         ) : (

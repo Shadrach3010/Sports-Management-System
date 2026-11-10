@@ -31,7 +31,9 @@ export const studentInputSchema = z.object({
     .max(150)
     .transform((value) => value || null),
   academicStatus: z.enum(academicStatuses),
-  houseId: z.uuid("Select a house."),
+  houseId: z
+    .union([z.uuid("Select a valid house."), z.literal("")])
+    .transform((value) => value || null),
 });
 
 export const eligibilityInputSchema = z
